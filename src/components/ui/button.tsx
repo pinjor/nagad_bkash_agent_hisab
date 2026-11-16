@@ -16,12 +16,18 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        ledger: "ledger-button",
+        tile: "tile-button",
+        keypad: "keypad-button",
+        nav: "nav-button",
       },
       size: {
         default: "h-9 px-4 py-2",
         sm: "h-8 rounded-md px-3 text-xs",
         lg: "h-10 rounded-md px-8",
         icon: "h-9 w-9",
+        touch: "min-h-14 min-w-14 px-4 text-lg [&_svg]:size-6",
+        primary: "h-[72px] w-full px-6 text-xl [&_svg]:size-7",
       },
     },
     defaultVariants: {

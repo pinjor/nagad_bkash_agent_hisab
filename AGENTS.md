@@ -28,3 +28,9 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Application architecture
+- Keep feature components under src/features with fewer than 200 lines each, and route leaves thin; this separates future phases without replacing working foundations.
+- IndexedDB via Dexie is the local source of truth; access it after hydration and derive balances from active integer-paisa transaction legs so local-only use never depends on network.
+- Register the generated app-shell worker only through the guarded PWA wrapper; never register it in development or preview, to prevent stale preview caches.
+- Keep foundation state in a shared React provider around Outlet so PIN locking and local settings apply to every page.
