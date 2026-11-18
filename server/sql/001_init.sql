@@ -88,6 +88,7 @@ create table if not exists loan_events (
 );
 
 alter table transactions add column if not exists phone text not null default '';
+alter table transactions add column if not exists party text not null default '';
 insert into pockets (shop_id, id, name_bn, sort)
 select s.id, 'PHARMA', 'ফার্মেসি', 5 from shops s
 on conflict do nothing;

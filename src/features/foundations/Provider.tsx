@@ -61,8 +61,8 @@ export function HisabProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const session = data?.session;
     if (!ready || !session?.name) return;
-    void db.settings.update('main', { shop_name: session.shop_name, shop_id: session.shop_id, owner_name: session.name, updated_at: Date.now() });
-  }, [ready, data?.session?.name, data?.session?.shop_name, data?.session?.shop_id]);
+    void db.settings.update('main', { shop_name: session.shop_name, shop_id: session.shop_id, updated_at: Date.now(), ...(session.role === 'admin' ? { owner_name: session.name } : {}) });
+  }, [ready, data?.session?.name, data?.session?.shop_name, data?.session?.shop_id, data?.session?.role]);
   useEffect(() => {
     if (!ready || !data) return;
     const token = data.session?.token ?? '';

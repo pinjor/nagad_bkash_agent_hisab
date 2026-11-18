@@ -31,7 +31,7 @@ From this folder, or from the `hishab-platform` root:
 npm run docker:up
 ```
 
-App listens on http://localhost:3010 (host 3000 is left free; set `APP_PORT` to change it). Ledger data stays in the browser (IndexedDB), not in the container.
+App listens on http://localhost:3010 (host 3000 is left free; set `APP_PORT` to change it). Public site: https://hisab.apptriangle.com. Ledger data stays in the browser (IndexedDB), not in the container.
 
 ```sh
 npm run docker:down

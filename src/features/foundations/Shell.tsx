@@ -24,7 +24,7 @@ export function Shell({ children }: { children: ReactNode }) {
     return () => { window.removeEventListener('beforeinstallprompt', handler); window.removeEventListener('hisab:update', refresh); };
   }, []);
   const title = detail || (role === 'employee' && path === '/reports' ? 'আগের হিসাব' : pageTitle[path]) || 'আমার হিসাব';
-  const note = detail ? 'এই কর্মচারীর কাজ' : (role === 'employee' && path === '/reports' ? 'প্রতিটি হিসাব' : pageNote[path]) || 'আপনার প্রতিদিনের খাতা';
+  const note = detail ? 'এই কর্মচারীর কাজ' : (role === 'employee' && path === '/' ? 'নতুন হিসাব লিখুন' : role === 'employee' && path === '/reports' ? 'প্রতিটি হিসাব' : pageNote[path]) || 'আপনার প্রতিদিনের খাতা';
   const link = !online ? (pending ? `অফলাইন · ফোনে ${number(pending, settings?.digits)}` : 'অফলাইন') : !serverOk ? (pending ? `ফোনে ${number(pending, settings?.digits)}` : 'সার্ভার ধীর') : pending ? `ফোনে ${number(pending, settings?.digits)}` : '';
   return <TitleContext.Provider value={setDetail}><div className="app-shell">
     <aside className="desktop-sidebar"><Link to="/" className="brand"><span className="brand-mark"><BookOpen /></span><span>আমার হিসাব<small>আপনার প্রতিদিনের খাতা</small></span></Link>
@@ -32,7 +32,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <div className="sidebar-foot"><ShieldCheck /><span>হিসাব এই ফোনে থাকে<small>আপনার টাকা, আপনার কাছে</small></span></div>
     </aside>
     <div className="main-shell"><header className="topbar"><h1 className="shop-title"><span>{title}</span><small className={link ? (online ? 'link-wait' : 'link-offline') : ''}>{note}{link ? ` · ${link}` : ''}</small></h1>
-      <div className="header-actions"><span className="local-chip"><ShieldCheck />{role === 'employee' ? 'কর্মচারী' : 'মালিক'}</span><Button variant="ghost" size="touch" title={hidden ? 'টাকা দেখান' : 'টাকা লুকান'} aria-label={hidden ? 'টাকা দেখান' : 'টাকা লুকান'} onClick={() => setHidden(!hidden)}>{hidden ? <EyeOff /> : <Eye />}</Button><Button variant="ghost" size="touch" aria-label="হিসাব শুনুন" title="হিসাব শুনুন" onClick={() => speak(`আমার মোট টাকা ${taka(Object.values(totals).reduce((a,b) => a+b,0), settings?.digits)}`)}><Volume2 /></Button></div>
+      <div className="header-actions"><span className="local-chip"><ShieldCheck />{role === 'employee' ? 'কর্মচারী' : 'মালিক'}</span><Button variant="ghost" size="touch" title={hidden ? 'টাকা দেখান' : 'টাকা লুকান'} aria-label={hidden ? 'টাকা দেখান' : 'টাকা লুকান'} onClick={() => setHidden(!hidden)}>{hidden ? <EyeOff /> : <Eye />}</Button><Button variant="ghost" size="touch" aria-label="হিসাব শুনুন" title="হিসাব শুনুন" onClick={() => speak(role === 'employee' ? 'নতুন হিসাব লিখুন' : `আমার মোট টাকা ${taka(Object.values(totals).reduce((a,b) => a+b,0), settings?.digits)}`)}><Volume2 /></Button></div>
     </header>
     {install && <div className="app-notice"><Download /><span>ফোনে আমার হিসাব</span><Button variant="outline" size="touch" onClick={async () => { await install.prompt(); await install.userChoice; setInstall(null); }}><Download />ইনস্টল করুন</Button></div>}
     {update && <div className="app-notice"><RefreshCw /><span>নতুন আপডেট আছে</span><Button variant="outline" size="touch" onClick={() => window.location.reload()}><Check />আপডেট করুন</Button></div>}

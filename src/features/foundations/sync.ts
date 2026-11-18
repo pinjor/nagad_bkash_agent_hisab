@@ -20,7 +20,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface Accepted { transactions: string[]; legs: string[]; people: string[]; loans: string[]; loan_events: string[] }
 export interface HomeBalances { pockets: Record<string, number>; lend_open: number; borrow_open: number; lend_count: number; borrow_count: number; configured: boolean }
-export interface Today { sale_paisa: number; cash_out_paisa: number; txn_count: number }
+export interface Today { sale_paisa: number; cash_out_paisa: number; lend_paisa: number; borrow_paisa: number; txn_count: number }
 
 export async function purgeAccepted(accepted: Accepted) {
   await db.transaction('rw', [db.transactions, db.txn_legs, db.people, db.loans, db.loan_events], async () => {
@@ -44,7 +44,7 @@ export async function buildOutbox() {
   ]);
   return {
     device_id: session?.device_id ?? 'local',
-    transactions: transactions.map((txn) => ({ id: txn.id, txn_type: txn.txn_type, amount_paisa: txn.amount_paisa, date: txn.date, status: txn.status, created_at: txn.created_at, void_reason: txn.void_reason, phone: txn.phone ?? '' })),
+    transactions: transactions.map((txn) => ({ id: txn.id, txn_type: txn.txn_type, amount_paisa: txn.amount_paisa, date: txn.date, status: txn.status, created_at: txn.created_at, void_reason: txn.void_reason, phone: txn.phone ?? '', party: txn.party ?? '' })),
     legs: legs.map((leg) => ({ id: leg.id, txn_id: leg.txn_id, pocket_id: leg.pocket_id, amount_paisa: leg.amount_paisa })),
     people: people.map((person) => ({ id: person.id, name: String(person.name ?? ''), phone: String(person.phone ?? ''), created_at: Number(person.created_at ?? Date.now()) })),
     loans: loans.map((loan) => ({ id: loan.id, person_id: loan.person_id, direction: loan.direction, principal_paisa: loan.principal_paisa, pocket_id: loan.pocket_id, opened_at: loan.opened_at, due_at: loan.due_at ?? null })),

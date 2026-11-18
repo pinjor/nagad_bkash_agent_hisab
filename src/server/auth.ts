@@ -29,8 +29,18 @@ export async function createSession(userId: string, shopId: string) {
   return token;
 }
 
-export function sessionCookie(token: string) {
-  return `hisab_session=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000`;
+export function sessionCookie(token: string, request: Request) {
+  return `hisab_session=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000${secureCookie(request)}`;
+}
+
+export function clearSessionCookie(request: Request) {
+  return `hisab_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0${secureCookie(request)}`;
+}
+
+function secureCookie(request: Request) {
+  const proto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const host = (request.headers.get("x-forwarded-host") || request.headers.get("host") || "").split(":")[0];
+  return proto === "https" || host === "hisab.apptriangle.com" ? "; Secure" : "";
 }
 
 export async function userFromRequest(request: Request): Promise<SessionUser | null> {

@@ -10,6 +10,7 @@ export interface SyncTxn {
   created_at: number;
   void_reason?: string;
   phone?: string;
+  party?: string;
 }
 export interface SyncLeg { id: string; txn_id: string; pocket_id: string; amount_paisa: number }
 export interface SyncPerson { id: string; name: string; phone?: string; created_at: number }
@@ -72,7 +73,7 @@ export function reviewSync(role: Role, body: SyncBody) {
       reject(txn.id, "bad_status");
       continue;
     }
-    transactions.push({ ...txn, phone: String(txn.phone ?? "").replace(/[^\d০-৯]/g, "").slice(0, 15) });
+    transactions.push({ ...txn, phone: String(txn.phone ?? "").replace(/[^\d০-৯]/g, "").slice(0, 15), party: String(txn.party ?? "").trim().slice(0, 80) });
   }
   const txnIds = new Set(transactions.map((txn) => txn.id));
   const legs = (body.legs ?? []).filter((leg) => {

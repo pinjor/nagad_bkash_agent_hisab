@@ -14,6 +14,7 @@ import { HisabProvider } from "@/features/foundations/Provider";
 import { Shell } from "@/features/foundations/Shell";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { appOrigin } from "../app-origin";
 
 function NotFoundComponent() {
   return (
@@ -90,6 +91,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "আমার হিসাব" },
       { property: "og:description", content: "আপনার দোকানের বাংলা হিসাব, আপনার ফোনে।" },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: appOrigin },
       { name: "twitter:card", content: "summary_large_image" },
       
     ],
@@ -99,6 +101,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/icon-192.png", type: "image/png" },
+      { rel: "canonical", href: `${appOrigin}/` },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/icon-192.png" },
     ],

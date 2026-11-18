@@ -10,17 +10,22 @@ type DoorShop = { id: string; name: string; people: DoorPerson[] };
 function authError(cause: unknown) {
   if (!(cause instanceof ApiError)) return 'সেভ হয়নি। আবার চেষ্টা করুন।';
   if (cause.status === 401 || cause.message === 'bad_login') return 'পিন মিলেনি';
-  if (cause.message === 'shop_exists') return 'এই দোকান আছে। ঢুকুন চাপুন।';
+  if (cause.message === 'shop_exists') return 'এই দোকান আছে। নিজের নাম চাপুন।';
   if (cause.message === 'name_taken') return 'এই নাম আছে';
   return 'সেভ হয়নি। আবার চেষ্টা করুন।';
+}
+
+function holdForOpen() {
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return new Promise((resolve) => window.setTimeout(resolve, reduce ? 0 : 420));
 }
 
 function roleLabel(role: DoorPerson['role']) {
   return role === 'admin' ? 'মালিক' : 'কর্মী';
 }
 
-async function remember(shopName: string, person: string, shopId: string, people?: DoorPerson[]) {
-  await db.settings.update('main', { shop_name: shopName, owner_name: person, shop_id: shopId, ...(people ? { door_people: people } : {}), updated_at: Date.now() });
+async function remember(shopName: string, person: string, shopId: string, role: 'admin' | 'employee' = 'admin', people?: DoorPerson[]) {
+  await db.settings.update('main', { shop_name: shopName, shop_id: shopId, ...(role === 'admin' ? { owner_name: person } : {}), ...(people ? { door_people: people } : {}), updated_at: Date.now() });
 }
 
 export function Login({ online }: { online: boolean }) {
@@ -36,6 +41,7 @@ export function Login({ online }: { online: boolean }) {
   const [wrong, setWrong] = useState(false);
   const [shake, setShake] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [opening, setOpening] = useState(false);
   const sent = useRef('');
   const wrongGen = useRef(0);
   const saved = useLiveQuery(() => db.settings.get('main'));
@@ -82,16 +88,22 @@ export function Login({ online }: { online: boolean }) {
         const shopName = shop.trim(); const personName = name.trim();
         if (!online) {
           await remember(shopName, personName, newShop);
+          setOpening(true);
+          await holdForOpen();
           await db.session.put({ id: 'main', token: '', role: 'admin', user_id, shop_id: newShop, name: personName, shop_name: shopName, pending: true, pin, device_id });
           return;
         }
         const result = await api<{ token: string; role: 'admin'; user_id: string; shop_id: string; name: string; shop_name: string }>('/api/register', { method: 'POST', body: JSON.stringify({ shop_id: newShop, shop_name: shopName, user_id, name: personName, pin }) });
         await remember(result.shop_name, result.name, result.shop_id);
+        setOpening(true);
+        await holdForOpen();
         await db.session.put({ id: 'main', token: result.token, role: 'admin', user_id: result.user_id, shop_id: result.shop_id, name: result.name, shop_name: result.shop_name, pending: false, device_id });
       } else {
         if (!online) { setError('ঢুকতে ইন্টারনেট লাগবে'); return; }
         const result = await api<{ token: string; role: 'admin' | 'employee'; user_id: string; shop_id: string; name: string; shop_name: string }>('/api/login', { method: 'POST', body: JSON.stringify({ user_id: personId, pin }) });
-        await remember(result.shop_name, result.name, result.shop_id, chosen?.people);
+        await remember(result.shop_name, result.name, result.shop_id, result.role, chosen?.people);
+        setOpening(true);
+        await holdForOpen();
         await db.session.put({ id: 'main', token: result.token, role: result.role, user_id: result.user_id, shop_id: result.shop_id, name: result.name, shop_name: result.shop_name, pending: false, device_id: newId() });
       }
     } catch (cause) {
@@ -116,6 +128,7 @@ export function Login({ online }: { online: boolean }) {
     void submit();
   }, [pin, ready, shop, name, personId, wrong, busy]);
   function changePin(next: string) {
+    if (busy || opening) return;
     wrongGen.current += 1;
     setWrong(false);
     setError('');
@@ -137,7 +150,8 @@ export function Login({ online }: { online: boolean }) {
   }
   const showShops = ready && (pickingShop || !chosen);
   const showPeople = ready && Boolean(chosen) && !pickingShop;
-  return <main className="lock-screen"><div className="lock-inner auth-card">
+  const dots = wrong ? 'pin-dots wrong' : opening ? 'pin-dots opening' : busy ? 'pin-dots checking' : 'pin-dots';
+  return <main className={opening ? 'lock-screen opening' : 'lock-screen'}><div className="lock-inner auth-card">
     <h1>{!ready ? 'আমার হিসাব' : showShops ? 'কোন দোকান' : (shopName || 'আমার হিসাব')}</h1>
     {!ready && <div className="auth-fields">
       <label>দোকানের নাম<input className="text-input" aria-label="দোকানের নাম" placeholder="যেমন আমার দোকান" value={shop} onChange={(event) => setShop(event.target.value)} maxLength={60} /></label>
@@ -147,10 +161,11 @@ export function Login({ online }: { online: boolean }) {
     {showPeople && <div className="auth-people" role="listbox" aria-label="কে ঢুকছেন">{chosen?.people.map((row) => <button key={row.id} type="button" role="option" aria-selected={row.id === personId} className={row.id === personId ? 'auth-person on' : 'auth-person'} onClick={() => choosePerson(row.id)}><strong>{row.name}</strong><small>{roleLabel(row.role)}</small></button>)}</div>}
     {(person || !ready) && <div className="auth-pin">
       <p className="auth-pin-label">{person ? `${person.name} এর পিন` : '৪ সংখ্যার পিন'}</p>
-      <div key={shake} className={wrong ? 'pin-dots wrong' : 'pin-dots'} aria-label={wrong ? 'পিন মিলেনি' : `${pin.length}টি সংখ্যা`}>{Array.from({ length: 4 }, (_, i) => <span key={i} className={i < pin.length ? 'filled' : ''} />)}</div>
+      <div key={shake} className={dots} aria-label={wrong ? 'পিন মিলেনি' : `${pin.length}টি সংখ্যা`}>{Array.from({ length: 4 }, (_, i) => <span key={i} className={i < pin.length ? 'filled' : ''} />)}</div>
       <Keypad value={pin} onChange={changePin} pin />
       {error && <p className="form-error" role="alert">{error}</p>}
-      <Button variant="ledger" size="primary" disabled={pin.length !== 4 || (ready ? !personId : (!shop.trim() || !name.trim())) || busy || wrong} onClick={submit}>{ready ? 'ঢুকুন' : 'দোকান খুলুন'}</Button>
+      <p className="auth-pin-status" aria-live="polite">{busy && !opening ? (ready ? 'ঢুকছে…' : 'খুলছে…') : opening ? 'খুলছে…' : '৪ সংখ্যা দিলেই ঢুকবে'}</p>
+      {!ready && <Button variant="ledger" size="primary" disabled={pin.length !== 4 || !shop.trim() || !name.trim() || busy || wrong} onClick={submit}>দোকান খুলুন</Button>}
     </div>}
     {showPeople && !person && <p className="auth-pin-label">নিজের নাম চাপুন, তারপর পিন দিন</p>}
     {showPeople && shops.length > 1 && <button type="button" className="auth-other" onClick={() => { setPickingShop(true); setPersonId(''); changePin(''); }}>অন্য দোকান</button>}

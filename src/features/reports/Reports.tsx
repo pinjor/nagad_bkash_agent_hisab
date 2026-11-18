@@ -13,7 +13,7 @@ const kinds = [{ id: '', label: 'সব ধরন' }, { id: 'CASH_IN', label: '�
 const kindLabel: Record<string, string> = { CASH_IN: 'টাকা ঢুকেছে', CASH_OUT: 'টাকা বের হয়েছে', FLEXI: 'ফ্লেক্সিলোড', LEND: 'ধার দিয়েছি', BORROW: 'ধার নিয়েছি', REPAY_IN: 'ফেরত পেয়েছি', REPAY_OUT: 'ফেরত দিয়েছি' };
 const pocketName = Object.fromEntries(seedPockets.map((pocket) => [pocket.id, pocket.name_bn]));
 
-interface Line { id: string; txn_type: string; amount_paisa: number; created_at: string; actor: string; pocket_id: string; phone?: string; pending?: boolean }
+interface Line { id: string; txn_type: string; amount_paisa: number; created_at: string; actor: string; pocket_id: string; phone?: string; party?: string; pending?: boolean }
 interface Day { date: string; lines: Line[] }
 
 function dhakaToday() {
@@ -44,6 +44,27 @@ function stamp(value: string) {
 function sum(lines: Line[], type: string) {
   return lines.filter((line) => line.txn_type === type).reduce((total, line) => total + line.amount_paisa, 0);
 }
+function wrote(name?: string) {
+  const clean = (name ?? '').trim();
+  return clean || 'কে লিখেছে জানা নেই';
+}
+const dharTypes = new Set(['LEND', 'BORROW', 'REPAY_IN', 'REPAY_OUT']);
+function chipClass(type: string) {
+  if (type === 'LEND') return 'lend';
+  if (type === 'BORROW') return 'borrow';
+  if (type === 'REPAY_IN') return 'repay-in';
+  return 'repay-out';
+}
+function DharCards({ items, digits }: { items: Line[]; digits: Parameters<typeof taka>[1] }) {
+  const cards = items.filter((line) => dharTypes.has(line.txn_type));
+  if (!cards.length) return null;
+  return <div className="dhar-cards">{cards.map((line) => <article className="dhar-card" key={line.id}><header><strong>{(line.party ?? '').trim() || 'নাম নেই'}</strong><span className={`loan-way ${chipClass(line.txn_type)}`}>{kindLabel[line.txn_type]}</span></header><p className="loan-left"><strong>{taka(line.amount_paisa, digits)}</strong></p><p className="dhar-meta"><PocketMark id={line.pocket_id} />{pocketName[line.pocket_id] ?? 'পকেট'} · {stamp(line.created_at)}</p><p className="dhar-writer">লিখেছে {wrote(line.actor)}</p></article>)}</div>;
+}
+
+export function dharPaisa(items: { txn_type: string; amount_paisa: number }[]) {
+  const of = (type: string) => items.filter((line) => line.txn_type === type).reduce((total, line) => total + line.amount_paisa, 0);
+  return { given: of('LEND') - of('REPAY_IN'), taken: of('BORROW') - of('REPAY_OUT'), backIn: of('REPAY_IN'), backOut: of('REPAY_OUT') };
+}
 
 export function Reports() {
   const { settings, online, role } = useHisab();
@@ -63,7 +84,7 @@ export function Reports() {
     return txns.map((txn) => {
       const own = legs.filter((leg) => leg.txn_id === txn.id);
       const from = own.find((leg) => leg.amount_paisa < 0) ?? own[0];
-      return { id: txn.id, txn_type: txn.txn_type, amount_paisa: txn.amount_paisa, date: txn.date, created_at: new Date(txn.created_at).toISOString(), actor: '', pocket_id: from?.pocket_id ?? '', phone: txn.phone ?? '', pending: true } satisfies Line & { date: string };
+      return { id: txn.id, txn_type: txn.txn_type, amount_paisa: txn.amount_paisa, date: txn.date, created_at: new Date(txn.created_at).toISOString(), actor: txn.writer ?? '', party: txn.party ?? '', pocket_id: from?.pocket_id ?? '', phone: txn.phone ?? '', pending: true } satisfies Line & { date: string };
     });
   }, []);
   useEffect(() => {
@@ -79,7 +100,7 @@ export function Reports() {
     days.push({ date: row.date, lines: pending.filter((item) => item.date === row.date) });
   }
   days.sort((a, b) => b.date.localeCompare(a.date));
-  const lineBits = (line: Line) => [kindLabel[line.txn_type], pocketName[line.pocket_id], line.phone, line.actor, line.pending ? 'ফোনে আছে' : '', stamp(line.created_at), taka(line.amount_paisa, settings?.digits)];
+  const lineBits = (line: Line) => [kindLabel[line.txn_type], pocketName[line.pocket_id], line.phone, line.party, wrote(line.actor), line.pending ? 'ফোনে আছে' : '', stamp(line.created_at), taka(line.amount_paisa, settings?.digits)];
   const listed = days.map((day) => matchesQuery(find, [dayTitle(day.date)]) ? day : { ...day, lines: day.lines.filter((line) => matchesQuery(find, [dayTitle(day.date), ...lineBits(line)])) }).filter((day) => !find.trim() || day.lines.length);
   const lines = listed.flatMap((day) => day.lines);
   const digits = settings?.digits;
@@ -89,12 +110,28 @@ export function Reports() {
   const rangeLabel = ranges.find((item) => item.id === range)?.label ?? '';
   const kindText = kinds.find((item) => item.id === kind)?.label ?? 'সব ধরন';
   const pocketText = pocket ? (pocketName[pocket] ?? 'পকেট') : 'সব পকেট';
-  const rows = (items: Line[]) => [
-    ['in', 'ঢুকেছে', taka(sum(items, 'CASH_IN'), digits)],
-    ['out', 'বের হয়েছে', taka(sum(items, 'CASH_OUT'), digits)],
-    ['flexi', 'ফ্লেক্সিলোড', taka(sum(items, 'FLEXI'), digits)],
-    ['loan', 'ধার', taka(sum(items, 'LEND') + sum(items, 'BORROW'), digits)],
-  ] as const;
+  const rows = (items: Line[]) => {
+    const dhar = dharPaisa(items);
+    return [
+      ['in', 'ঢুকেছে', taka(sum(items, 'CASH_IN'), digits)],
+      ['out', 'বের হয়েছে', taka(sum(items, 'CASH_OUT'), digits)],
+      ['flexi', 'ফ্লেক্সিলোড', taka(sum(items, 'FLEXI'), digits)],
+      ['lend', 'ধার দিয়েছি', taka(dhar.given, digits)],
+      ['repay-in', 'ফেরত পেয়েছি', taka(dhar.backIn, digits)],
+      ['borrow', 'ধার নিয়েছি', taka(dhar.taken, digits)],
+      ['repay-out', 'ফেরত দিয়েছি', taka(dhar.backOut, digits)],
+    ] as const;
+  };
+  const nets = (items: Line[]) => {
+    const dhar = dharPaisa(items);
+    return [
+      ['in', 'ঢুকেছে', taka(sum(items, 'CASH_IN'), digits)],
+      ['out', 'বের হয়েছে', taka(sum(items, 'CASH_OUT'), digits)],
+      ['flexi', 'ফ্লেক্সিলোড', taka(sum(items, 'FLEXI'), digits)],
+      ['lend', 'ধার দিয়েছি', taka(dhar.given, digits)],
+      ['borrow', 'ধার নিয়েছি', taka(dhar.taken, digits)],
+    ] as const;
+  };
   return <div className="report-page">
     <div className="report-top">
       <p className="field-hint">{historyOnly ? 'আগের হিসাব। কে লিখেছে, কোন পকেট, কত টাকা।' : 'কোন দিনে কত টাকা ঢুকেছে, বের হয়েছে, কে লিখেছে'}</p>
@@ -111,15 +148,17 @@ export function Reports() {
       <button type="button" className="day-back" onClick={() => setOpenDate('')}><ArrowLeft />সব দিন</button>
       <header><h2>{dayTitle(chosen.date)}</h2><span>{number(chosenLines.length, digits)}টি হিসাব</span></header>
       <p className="field-hint">{rangeLabel} · {kindText} · {pocketText}</p>
-      {!historyOnly && <div className="day-rows">{rows(chosenLines).map(([tone, label, amount]) => <div key={label}><span><i className={`tone ${tone}`} />{label}</span><b>{amount}</b></div>)}</div>}
-      <ul className="day-lines">{chosenLines.map((line) => <li key={line.id}><div><strong>{kindLabel[line.txn_type] ?? line.txn_type}</strong><span><PocketMark id={line.pocket_id} />{pocketName[line.pocket_id] ?? 'পকেট'}{line.phone ? ` · ${line.phone}` : ''} · {line.pending ? 'ফোনে আছে' : line.actor || 'মালিক'} · {stamp(line.created_at)}</span></div><b className={line.txn_type === 'CASH_OUT' || line.txn_type === 'LEND' || line.txn_type === 'REPAY_OUT' ? 'out' : 'in'}>{taka(line.amount_paisa, digits)}</b></li>)}</ul>
+      {!historyOnly && <div className="day-rows">{nets(chosenLines).map(([tone, label, amount]) => <div key={label}><span><i className={`tone ${tone}`} />{label}</span><b>{amount}</b></div>)}</div>}
+      <DharCards items={chosenLines} digits={digits} />
+      <ul className="day-lines">{chosenLines.filter((line) => !dharTypes.has(line.txn_type)).map((line) => <li key={line.id}><div><strong>{kindLabel[line.txn_type] ?? line.txn_type}</strong><span><PocketMark id={line.pocket_id} />{pocketName[line.pocket_id] ?? 'পকেট'}{line.phone ? ` · ${line.phone}` : ''} · লিখেছে {wrote(line.actor)}{line.pending ? ' · ফোনে আছে' : ''} · {stamp(line.created_at)}</span></div><b className={line.txn_type === 'CASH_OUT' ? 'out' : 'in'}>{taka(line.amount_paisa, digits)}</b></li>)}</ul>
     </section> : <>
     {!historyOnly && <section className="settings-group">
       <h2>এই সময়ে</h2>
       <p className="field-hint">{rangeLabel} · {kindText} · {pocketText} · {number(lines.length, digits)}টি হিসাব</p>
       <div className="settings-list report-totals">
-        {rows(lines).map(([tone, label, amount]) => <article key={label}><i className={`tone ${tone}`} /><div><h3>{label}</h3></div><strong>{amount}</strong></article>)}
+        {nets(lines).map(([tone, label, amount]) => <article key={label}><i className={`tone ${tone}`} /><div><h3>{label}</h3></div><strong>{amount}</strong></article>)}
       </div>
+      <DharCards items={lines} digits={digits} />
     </section>}
     <section className="settings-group">
       <h2>দিন ধরে</h2>

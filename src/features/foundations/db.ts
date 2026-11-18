@@ -1,18 +1,18 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { Digits, MoneyLeg, MoneyTransaction } from './money';
-export interface CachedLoanEvent { id: string; type: string; amount_paisa: number; at: string }
-export interface CachedLoan { id: string; person_id: string; person_name: string; direction: 'lend' | 'borrow'; principal_paisa: number; remaining_paisa: number; pocket_id: string; opened_at: string; closed_at: string | null; status: string; events: CachedLoanEvent[] }
-export interface CachedPerson { id: string; name: string; phone: string }
-export interface LedgerCache { pockets: Record<string, number>; today: { sale_paisa: number; cash_out_paisa: number; txn_count: number }; lend_open: number; borrow_open: number; lend_count: number; borrow_count: number; configured: boolean; people: CachedPerson[]; loans: CachedLoan[] }
+export interface CachedLoanEvent { id: string; type: string; amount_paisa: number; at: string; writer?: string }
+export interface CachedLoan { id: string; person_id: string; person_name: string; direction: 'lend' | 'borrow'; principal_paisa: number; remaining_paisa: number; pocket_id: string; opened_at: string; closed_at: string | null; status: string; writer?: string; events: CachedLoanEvent[] }
+export interface CachedPerson { id: string; name: string; phone: string; writer?: string }
+export interface LedgerCache { pockets: Record<string, number>; today: { sale_paisa: number; cash_out_paisa: number; lend_paisa: number; borrow_paisa: number; txn_count: number }; lend_open: number; borrow_open: number; lend_count: number; borrow_count: number; configured: boolean; people: CachedPerson[]; loans: CachedLoan[] }
 export interface DoorPerson { id: string; name: string; role: 'admin' | 'employee' }
 export interface Settings { id: string; shop_name: string; shop_id?: string; owner_name: string; door_people?: DoorPerson[]; digits: Digits; pin_hash?: string; pin_salt?: string; configured: boolean; privacy_default: boolean; voice_on: boolean; updated_at: number; failed_attempts: number; blocked_until: number; cache?: LedgerCache }
 export interface Pocket { id: string; code: string; name_bn: string; type: string; color: string; icon: string; active: boolean; sort: number; opening_balance_paisa: number }
-export interface Transaction extends MoneyTransaction { txn_type: string; amount_paisa: number; date: string; created_at: number; updated_at: number; device_id: string; synced: boolean; version: number; deleted: boolean; void_reason?: string; phone?: string }
+export interface Transaction extends MoneyTransaction { txn_type: string; amount_paisa: number; date: string; created_at: number; updated_at: number; device_id: string; synced: boolean; version: number; deleted: boolean; void_reason?: string; phone?: string; party?: string; writer?: string }
 export interface Leg extends MoneyLeg { id: string }
 export interface LocalRow { id: string; created_at?: number; updated_at?: number; deleted?: boolean; [key: string]: unknown }
 export interface SessionRow { id: 'main'; token: string; role: 'admin' | 'employee'; user_id: string; shop_id: string; name: string; shop_name: string; pending: boolean; pin?: string; device_id: string }
-export interface LoanRow { id: string; person_id: string; direction: 'lend' | 'borrow'; principal_paisa: number; pocket_id: string; opened_at: number; due_at?: number; status: string; synced: boolean }
-export interface LoanEventRow { id: string; loan_id: string; type: 'open' | 'repayment'; amount_paisa: number; at: number; note?: string; synced: boolean }
+export interface LoanRow { id: string; person_id: string; direction: 'lend' | 'borrow'; principal_paisa: number; pocket_id: string; opened_at: number; due_at?: number; status: string; synced: boolean; writer?: string }
+export interface LoanEventRow { id: string; loan_id: string; type: 'open' | 'repayment'; amount_paisa: number; at: number; note?: string; synced: boolean; writer?: string }
 export function newId() {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
@@ -49,6 +49,15 @@ export async function deviceId() {
   if (session?.device_id) return session.device_id;
   return newId();
 }
+async function writerName() {
+  return (await db.session.get('main'))?.name?.trim() ?? '';
+}
+async function partyName(personId: string, fallback = '') {
+  const local = await db.people.get(personId);
+  const cache = (await db.settings.get('main'))?.cache;
+  const cached = cache?.people?.find((person) => person.id === personId)?.name ?? '';
+  return String(local?.name ?? cached ?? fallback).trim().slice(0, 80);
+}
 export async function saveOpening(amounts: Record<string, number>, shop_name: string, pin_hash?: string, pin_salt?: string) {
   const id = newId(); const now = Date.now(); const device_id = await deviceId();
   await db.transaction('rw', db.settings, db.transactions, db.txn_legs, db.audit_log, async () => {
@@ -67,42 +76,47 @@ export async function voidOpening(id: string) {
   });
 }
 export async function queueEntry(txn_type: string, pocket_id: string, amount_paisa: number, extra?: { pocket_to?: string; phone?: string }) {
-  const id = newId(); const now = Date.now(); const device_id = await deviceId();
+  const id = newId(); const now = Date.now(); const device_id = await deviceId(); const writer = await writerName();
   const legs = extra?.pocket_to
     ? [{ id: newId(), txn_id: id, pocket_id, amount_paisa: -amount_paisa }, { id: newId(), txn_id: id, pocket_id: extra.pocket_to, amount_paisa }]
     : [{ id: newId(), txn_id: id, pocket_id, amount_paisa: txn_type === 'CASH_OUT' ? -amount_paisa : amount_paisa }];
   await db.transaction('rw', db.transactions, db.txn_legs, async () => {
-    await db.transactions.add({ id, txn_type, amount_paisa, date: new Date().toLocaleDateString('en-CA'), phone: extra?.phone ?? '', created_at: now, updated_at: now, device_id, synced: false, version: 1, deleted: false, status: 'active' });
+    await db.transactions.add({ id, txn_type, amount_paisa, date: new Date().toLocaleDateString('en-CA'), phone: extra?.phone ?? '', writer, created_at: now, updated_at: now, device_id, synced: false, version: 1, deleted: false, status: 'active' });
     await db.txn_legs.bulkAdd(legs);
   });
   return id;
 }
 export async function queuePerson(name: string, phone: string) {
   const id = newId();
-  await db.people.add({ id, name: name.trim(), phone: phone.trim(), created_at: Date.now(), synced: false });
+  await db.people.add({ id, name: name.trim(), phone: phone.trim(), writer: await writerName(), created_at: Date.now(), synced: false });
   return id;
 }
 export async function queueLoan(input: { person_id: string; direction: 'lend' | 'borrow'; principal_paisa: number; pocket_id: string; due_at?: number }) {
-  const id = newId(); const now = Date.now(); const device_id = await deviceId();
+  const id = newId(); const now = Date.now(); const device_id = await deviceId(); const writer = await writerName();
+  const party = await partyName(input.person_id);
   const txn_type = input.direction === 'lend' ? 'LEND' : 'BORROW';
   const signed = input.direction === 'lend' ? -input.principal_paisa : input.principal_paisa;
   await db.transaction('rw', db.loans, db.loan_events, db.transactions, db.txn_legs, async () => {
-    await db.loans.add({ id, ...input, opened_at: now, status: 'open', synced: false });
-    await db.loan_events.add({ id: newId(), loan_id: id, type: 'open', amount_paisa: input.principal_paisa, at: now, synced: false });
+    await db.loans.add({ id, ...input, opened_at: now, status: 'open', synced: false, writer });
+    await db.loan_events.add({ id: newId(), loan_id: id, type: 'open', amount_paisa: input.principal_paisa, at: now, synced: false, writer });
     const txn_id = newId();
-    await db.transactions.add({ id: txn_id, txn_type, amount_paisa: input.principal_paisa, date: new Date().toLocaleDateString('en-CA'), created_at: now, updated_at: now, device_id, synced: false, version: 1, deleted: false, status: 'active' });
+    await db.transactions.add({ id: txn_id, txn_type, amount_paisa: input.principal_paisa, party, writer, date: new Date().toLocaleDateString('en-CA'), created_at: now, updated_at: now, device_id, synced: false, version: 1, deleted: false, status: 'active' });
     await db.txn_legs.add({ id: newId(), txn_id, pocket_id: input.pocket_id, amount_paisa: signed });
   });
   return id;
 }
 export async function queueRepayment(input: { loan_id: string; amount_paisa: number; pocket_id: string; direction: 'lend' | 'borrow' }) {
-  const now = Date.now(); const device_id = await deviceId();
+  const now = Date.now(); const device_id = await deviceId(); const writer = await writerName();
+  const loan = await db.loans.get(input.loan_id);
+  const cache = (await db.settings.get('main'))?.cache;
+  const cached = cache?.loans?.find((row) => row.id === input.loan_id);
+  const party = await partyName(loan?.person_id ?? cached?.person_id ?? '', cached?.person_name ?? '');
   const txn_type = input.direction === 'lend' ? 'REPAY_IN' : 'REPAY_OUT';
   const signed = input.direction === 'lend' ? input.amount_paisa : -input.amount_paisa;
   await db.transaction('rw', db.loan_events, db.transactions, db.txn_legs, async () => {
-    await db.loan_events.add({ id: newId(), loan_id: input.loan_id, type: 'repayment', amount_paisa: input.amount_paisa, at: now, synced: false });
+    await db.loan_events.add({ id: newId(), loan_id: input.loan_id, type: 'repayment', amount_paisa: input.amount_paisa, at: now, synced: false, writer });
     const txn_id = newId();
-    await db.transactions.add({ id: txn_id, txn_type, amount_paisa: input.amount_paisa, date: new Date().toLocaleDateString('en-CA'), created_at: now, updated_at: now, device_id, synced: false, version: 1, deleted: false, status: 'active' });
+    await db.transactions.add({ id: txn_id, txn_type, amount_paisa: input.amount_paisa, party, writer, date: new Date().toLocaleDateString('en-CA'), created_at: now, updated_at: now, device_id, synced: false, version: 1, deleted: false, status: 'active' });
     await db.txn_legs.add({ id: newId(), txn_id, pocket_id: input.pocket_id, amount_paisa: signed });
   });
 }

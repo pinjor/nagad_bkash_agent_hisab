@@ -1,4 +1,4 @@
-import { sessionCookie, userFromRequest } from "./auth";
+import { clearSessionCookie, sessionCookie, userFromRequest } from "./auth";
 import { addEmployee, applySync, balances, changeOwnPin, dayHistory, listEmployees, loans, login, people, recentEntries, registerShop, renameShop, repayLoan, report, setEmployeePin, shopReady, today, voidTransaction } from "./ledger";
 
 function json(data: unknown, status = 200, headers?: HeadersInit) {
@@ -25,13 +25,13 @@ export async function handleApi(request: Request) {
     if (request.method === "GET" && path === "/api/setup") return json(await shopReady());
     if (request.method === "POST" && path === "/api/register") {
       const result = await registerShop(await readJson(request));
-      return json(result, 200, { "set-cookie": sessionCookie(result.token) });
+      return json(result, 200, { "set-cookie": sessionCookie(result.token, request) });
     }
     if (request.method === "POST" && path === "/api/login") {
       const result = await login(await readJson(request));
-      return json(result, 200, { "set-cookie": sessionCookie(result.token) });
+      return json(result, 200, { "set-cookie": sessionCookie(result.token, request) });
     }
-    if (request.method === "POST" && path === "/api/logout") return json({ ok: true }, 200, { "set-cookie": "hisab_session=; HttpOnly; Path=/; Max-Age=0" });
+    if (request.method === "POST" && path === "/api/logout") return json({ ok: true }, 200, { "set-cookie": clearSessionCookie(request) });
     const user = await userFromRequest(request);
     if (!user) return json({ error: "unauthorized" }, 401);
     if (request.method === "GET" && path === "/api/me") return json(user);

@@ -208,7 +208,7 @@ export async function applySync(actor: SessionUser, body: SyncBody) {
     }
     for (const txn of reviewed.accept.transactions) {
       const id = uuid(txn.id);
-      await tx`insert into transactions (id, shop_id, txn_type, amount_paisa, date, status, device_id, created_by, created_at, phone) values (${id}, ${actor.shop_id}, ${txn.txn_type}, ${txn.amount_paisa}, ${txn.date}, 'active', ${reviewed.accept.device_id}, ${actor.id}, ${new Date(txn.created_at)}, ${txn.phone ?? ""}) on conflict (id) do nothing`;
+      await tx`insert into transactions (id, shop_id, txn_type, amount_paisa, date, status, device_id, created_by, created_at, phone, party) values (${id}, ${actor.shop_id}, ${txn.txn_type}, ${txn.amount_paisa}, ${txn.date}, 'active', ${reviewed.accept.device_id}, ${actor.id}, ${new Date(txn.created_at)}, ${txn.phone ?? ""}, ${txn.party ?? ""}) on conflict (id) do nothing`;
       accepted.transactions.push(id);
     }
     for (const leg of reviewed.accept.legs) {
@@ -249,7 +249,7 @@ export async function applySync(actor: SessionUser, body: SyncBody) {
 async function repay(tx: Awaited<ReturnType<typeof db>>, actor: SessionUser, input: { loan_id: string; amount_paisa: number; at: number; event_id: string; note: string; pocket_id?: string; withTxn: boolean }) {
   const already = await tx`select id from loan_events where id = ${input.event_id} and shop_id = ${actor.shop_id}`;
   if (already.length) return true;
-  const loans = await tx`select id, direction, principal_paisa, pocket_id from loans where id = ${input.loan_id} and shop_id = ${actor.shop_id}`;
+  const loans = await tx`select l.id, l.direction, l.principal_paisa, l.pocket_id, coalesce(p.name, '') as person_name from loans l left join people p on p.id = l.person_id where l.id = ${input.loan_id} and l.shop_id = ${actor.shop_id}`;
   const loan = loans[0];
   if (!loan) return false;
   const paidRows = await tx`select coalesce(sum(amount_paisa), 0)::bigint as paid from loan_events where loan_id = ${loan.id} and type = 'repayment'`;
@@ -265,7 +265,7 @@ async function repay(tx: Awaited<ReturnType<typeof db>>, actor: SessionUser, inp
   const txnId = crypto.randomUUID();
   const txnType = loan.direction === "lend" ? "REPAY_IN" : "REPAY_OUT";
   const signed = loan.direction === "lend" ? input.amount_paisa : -input.amount_paisa;
-  await tx`insert into transactions (id, shop_id, txn_type, amount_paisa, date, status, device_id, created_by, created_at) values (${txnId}, ${actor.shop_id}, ${txnType}, ${input.amount_paisa}, ${at.toISOString().slice(0, 10)}, 'active', 'server', ${actor.id}, ${at})`;
+  await tx`insert into transactions (id, shop_id, txn_type, amount_paisa, date, status, device_id, created_by, created_at, party) values (${txnId}, ${actor.shop_id}, ${txnType}, ${input.amount_paisa}, ${at.toISOString().slice(0, 10)}, 'active', 'server', ${actor.id}, ${at}, ${String(loan.person_name ?? "")})`;
   await tx`insert into txn_legs (id, shop_id, txn_id, pocket_id, amount_paisa) values (${crypto.randomUUID()}, ${actor.shop_id}, ${txnId}, ${pocket}, ${signed})`;
   return true;
 }
@@ -328,18 +328,18 @@ export async function today(actor: SessionUser) {
   const sql = await db();
   const rows = await sql`select txn_type, coalesce(sum(amount_paisa), 0)::bigint as amount, count(*)::int as count from transactions where shop_id = ${actor.shop_id} and status = 'active' and date = (now() at time zone 'Asia/Dhaka')::date group by txn_type`;
   const of = (type: string) => Number(rows.find((row) => row.txn_type === type)?.amount ?? 0);
-  return { sale_paisa: of("CASH_IN"), cash_out_paisa: of("CASH_OUT"), txn_count: rows.reduce((sum, row) => sum + Number(row.count), 0) };
+  return { sale_paisa: of("CASH_IN"), cash_out_paisa: of("CASH_OUT"), lend_paisa: of("LEND"), borrow_paisa: of("BORROW"), txn_count: rows.reduce((sum, row) => sum + Number(row.count), 0) };
 }
 
 export async function people(actor: SessionUser) {
   const sql = await db();
-  return sql`select id, name, phone, created_at from people where shop_id = ${actor.shop_id} order by created_at desc`;
+  return sql`select p.id, p.name, p.phone, p.created_at, coalesce(u.name, '') as writer from people p left join users u on u.id = p.created_by where p.shop_id = ${actor.shop_id} order by p.created_at desc`;
 }
 
 export async function loans(actor: SessionUser) {
   const sql = await db();
-  const rows = await sql`select l.id, l.person_id, p.name as person_name, l.direction, l.principal_paisa, l.pocket_id, l.opened_at, l.due_at, l.closed_at, l.status, l.principal_paisa - coalesce((select sum(amount_paisa) from loan_events e where e.loan_id = l.id and e.type = 'repayment'), 0) as remaining_paisa from loans l join people p on p.id = l.person_id where l.shop_id = ${actor.shop_id} order by l.opened_at desc`;
-  const events = await sql`select id, loan_id, type, amount_paisa, at, note from loan_events where shop_id = ${actor.shop_id} order by at`;
+  const rows = await sql`select l.id, l.person_id, p.name as person_name, l.direction, l.principal_paisa, l.pocket_id, l.opened_at, l.due_at, l.closed_at, l.status, coalesce(u.name, '') as writer, l.principal_paisa - coalesce((select sum(amount_paisa) from loan_events e where e.loan_id = l.id and e.type = 'repayment'), 0) as remaining_paisa from loans l join people p on p.id = l.person_id left join users u on u.id = l.created_by where l.shop_id = ${actor.shop_id} order by l.opened_at desc`;
+  const events = await sql`select e.id, e.loan_id, e.type, e.amount_paisa, e.at, e.note, coalesce(u.name, '') as writer from loan_events e left join users u on u.id = e.actor_id where e.shop_id = ${actor.shop_id} order by e.at`;
   return rows.map((loan) => ({ ...loan, principal_paisa: Number(loan.principal_paisa), remaining_paisa: Number(loan.remaining_paisa), events: events.filter((event) => event.loan_id === loan.id).map((event) => ({ ...event, amount_paisa: Number(event.amount_paisa) })) }));
 }
 
@@ -364,8 +364,18 @@ export async function dayHistory(actor: SessionUser, query: { range: string; kin
   const back = range === "today" ? 0 : range === "30" ? 29 : range === "7" ? 6 : null;
   const since = back === null ? "" : new Date(Date.now() + 6 * 60 * 60 * 1000 - back * 86400000).toISOString().slice(0, 10);
   const sql = await db();
-  const rows = await sql<{ id: string; txn_type: string; amount_paisa: number; date: string; created_at: Date; actor: string; pocket_id: string; phone: string }[]>`
+  const rows = await sql<{ id: string; txn_type: string; amount_paisa: number; date: string; created_at: Date; actor: string; pocket_id: string; phone: string; party: string }[]>`
     select t.id, t.txn_type, t.amount_paisa, t.date::text as date, t.created_at, coalesce(u.name, '') as actor, coalesce(t.phone, '') as phone,
+      coalesce(nullif(t.party, ''),
+        (select p.name from loans l join people p on p.id = l.person_id
+          where l.shop_id = t.shop_id and l.opened_at = t.created_at and l.principal_paisa = t.amount_paisa
+            and ((t.txn_type = 'LEND' and l.direction = 'lend') or (t.txn_type = 'BORROW' and l.direction = 'borrow'))
+          limit 1),
+        (select p.name from loan_events e join loans l on l.id = e.loan_id join people p on p.id = l.person_id
+          where e.shop_id = t.shop_id and e.at = t.created_at and e.amount_paisa = t.amount_paisa and e.type = 'repayment'
+            and ((t.txn_type = 'REPAY_IN' and l.direction = 'lend') or (t.txn_type = 'REPAY_OUT' and l.direction = 'borrow'))
+          limit 1),
+        '') as party,
       coalesce(
         (select l.pocket_id from txn_legs l where l.txn_id = t.id and l.amount_paisa < 0 limit 1),
         (select l.pocket_id from txn_legs l where l.txn_id = t.id limit 1),
@@ -382,7 +392,7 @@ export async function dayHistory(actor: SessionUser, query: { range: string; kin
     order by t.created_at desc
     limit 400
   `;
-  const days: { date: string; lines: { id: string; txn_type: string; amount_paisa: number; created_at: string; actor: string; pocket_id: string; phone: string }[] }[] = [];
+  const days: { date: string; lines: { id: string; txn_type: string; amount_paisa: number; created_at: string; actor: string; pocket_id: string; phone: string; party: string }[] }[] = [];
   for (const row of rows) {
     const date = String(row.date).slice(0, 10);
     let day = days.find((item) => item.date === date);
@@ -390,7 +400,7 @@ export async function dayHistory(actor: SessionUser, query: { range: string; kin
       day = { date, lines: [] };
       days.push(day);
     }
-    day.lines.push({ id: row.id, txn_type: row.txn_type, amount_paisa: Number(row.amount_paisa), created_at: new Date(row.created_at).toISOString(), actor: row.actor, pocket_id: row.pocket_id, phone: row.phone ?? "" });
+    day.lines.push({ id: row.id, txn_type: row.txn_type, amount_paisa: Number(row.amount_paisa), created_at: new Date(row.created_at).toISOString(), actor: row.actor, pocket_id: row.pocket_id, phone: row.phone ?? "", party: row.party ?? "" });
   }
   return { days };
 }
