@@ -23,8 +23,8 @@ export function Shell({ children }: { children: ReactNode }) {
     window.addEventListener('beforeinstallprompt', handler); window.addEventListener('hisab:update', refresh);
     return () => { window.removeEventListener('beforeinstallprompt', handler); window.removeEventListener('hisab:update', refresh); };
   }, []);
-  const title = detail || pageTitle[path] || 'আমার হিসাব';
-  const note = detail ? 'এই কর্মচারীর কাজ' : pageNote[path] || 'আপনার প্রতিদিনের খাতা';
+  const title = detail || (role === 'employee' && path === '/reports' ? 'আগের হিসাব' : pageTitle[path]) || 'আমার হিসাব';
+  const note = detail ? 'এই কর্মচারীর কাজ' : (role === 'employee' && path === '/reports' ? 'প্রতিটি হিসাব' : pageNote[path]) || 'আপনার প্রতিদিনের খাতা';
   const link = !online ? (pending ? `অফলাইন · ফোনে ${number(pending, settings?.digits)}` : 'অফলাইন') : !serverOk ? (pending ? `ফোনে ${number(pending, settings?.digits)}` : 'সার্ভার ধীর') : pending ? `ফোনে ${number(pending, settings?.digits)}` : '';
   return <TitleContext.Provider value={setDetail}><div className="app-shell">
     <aside className="desktop-sidebar"><Link to="/" className="brand"><span className="brand-mark"><BookOpen /></span><span>আমার হিসাব<small>আপনার প্রতিদিনের খাতা</small></span></Link>

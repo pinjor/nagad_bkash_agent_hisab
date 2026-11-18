@@ -50,23 +50,32 @@ export async function registerShop(input: { shop_id: string; shop_name: string; 
 
 export async function shopReady() {
   const sql = await db();
-  const rows = await sql`select id from shops limit 1`;
-  return { ready: rows.length > 0 };
+  const shops = await sql<{ id: string; name: string }[]>`select id, name from shops order by name`;
+  const people = await sql<{ id: string; shop_id: string; name: string; role: "admin" | "employee" }[]>`
+    select id, shop_id, name, role from users where active order by case when role = 'admin' then 0 else 1 end, name
+  `;
+  return {
+    ready: shops.length > 0,
+    shops: shops.map((shop) => ({
+      id: shop.id,
+      name: shop.name,
+      people: people.filter((person) => person.shop_id === shop.id).map(({ id, name, role }) => ({ id, name, role })),
+    })),
+  };
 }
 
-export async function login(input: { shop_name?: string; name?: string; pin: string }) {
+export async function login(input: { user_id?: string; pin: string }) {
   const pin = pinOf(input.pin);
+  let userId = "";
+  try { userId = uuid(input.user_id); } catch { throw new Error("bad_login"); }
   const sql = await db();
-  const shop = String(input.shop_name ?? "").trim();
-  const person = String(input.name ?? "").trim();
   const rows = await sql<{ id: string; shop_id: string; name: string; role: "admin" | "employee"; pin_hash: string; pin_salt: string; shop_name: string }[]>`
     select u.id, u.shop_id, u.name, u.role, u.pin_hash, u.pin_salt, s.name as shop_name
     from users u join shops s on s.id = u.shop_id
-    where u.active and (${shop} = '' or s.name = ${shop}) and (${person} = '' or u.name = ${person})
+    where u.active and u.id = ${userId}
   `;
-  const matches = rows.filter((user) => checkPin(pin, user.pin_hash, user.pin_salt));
-  if (matches.length !== 1) throw new Error("bad_login");
-  const user = matches[0];
+  const user = rows[0];
+  if (!user || !checkPin(pin, user.pin_hash, user.pin_salt)) throw new Error("bad_login");
   const token = await createSession(user.id, user.shop_id);
   return { token, role: user.role, user_id: user.id, shop_id: user.shop_id, name: user.name, shop_name: user.shop_name };
 }
@@ -82,6 +91,18 @@ export async function addEmployee(actor: SessionUser, input: { name: string; pin
   const rows = await sql`insert into users (id, shop_id, name, role, pin_hash, pin_salt) values (${id}, ${actor.shop_id}, ${name}, 'employee', ${hash}, ${salt}) on conflict (shop_id, name) do nothing returning id`;
   if (!rows.length) throw new Error("name_taken");
   return { id, name, role: "employee" as const };
+}
+
+export async function changeOwnPin(actor: SessionUser, input: { current?: string; next?: string }) {
+  const current = pinOf(input.current);
+  const next = pinOf(input.next);
+  const sql = await db();
+  const rows = await sql<{ pin_hash: string; pin_salt: string }[]>`select pin_hash, pin_salt from users where id = ${actor.id} and active`;
+  const user = rows[0];
+  if (!user || !checkPin(current, user.pin_hash, user.pin_salt)) throw new Error("bad_pin");
+  const { hash, salt } = hashPin(next);
+  await sql`update users set pin_hash = ${hash}, pin_salt = ${salt} where id = ${actor.id} and active`;
+  return { ok: true };
 }
 
 export async function setEmployeePin(actor: SessionUser, id: string, pin: string) {
@@ -337,7 +358,6 @@ const historyKinds: Record<string, string[]> = {
 };
 
 export async function dayHistory(actor: SessionUser, query: { range: string; kind: string; pocket: string }) {
-  if (actor.role !== "admin") throw new Error("forbidden");
   const range = query.range === "today" || query.range === "30" || query.range === "all" ? query.range : "7";
   const kinds = historyKinds[query.kind] ?? [];
   const pocket = ["CASH", "BKASH", "NAGAD", "ROCKET", "FLEXI", "PHARMA"].includes(query.pocket) ? query.pocket : "";

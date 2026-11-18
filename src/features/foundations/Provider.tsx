@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, initialize, type CachedLoan, type CachedPerson, type LedgerCache, type Settings } from './db';
 import { BACKGROUND_LOCK_MS } from './security';
@@ -17,6 +17,7 @@ export function HisabProvider({ children }: { children: ReactNode }) {
   const [storage, setStorage] = useState('যাচাই হচ্ছে'); const [online, setOnline] = useState(true); const [serverOk, setServerOk] = useState(true);
   const [server, setServer] = useState<{ balances: HomeBalances; today: Today } | null>(null);
   const [pending, setPending] = useState(0);
+  const seenToken = useRef<string | null>(null);
   const data = useLiveQuery(async () => ready ? { settings: await db.settings.get('main'), pockets: await db.pockets.toArray(), txns: await db.transactions.toArray(), legs: await db.txn_legs.toArray(), loans: await db.loans.toArray(), events: await db.loan_events.toArray(), session: await db.session.get('main') } : undefined, [ready]);
   const refresh = async () => {
     const [balancesBody, todayBody] = await Promise.all([api<HomeBalances>('/api/balances'), api<Today>('/api/today')]);
@@ -40,12 +41,16 @@ export function HisabProvider({ children }: { children: ReactNode }) {
       setServerOk(true);
     } catch (cause) {
       await left();
-      if (cause instanceof ApiError && cause.status === 401) { await db.session.delete('main'); return; }
+      if (cause instanceof ApiError && cause.status === 401 && cause.token) {
+        const current = (await db.session.get('main'))?.token ?? '';
+        if (current === cause.token) await db.session.delete('main');
+        return;
+      }
       setServerOk(false);
     }
   };
   useEffect(() => {
-    initialize().then(async () => { const s = await db.settings.get('main'); setLocked(Boolean(s?.pin_hash)); setHidden(s?.privacy_default ?? false); setPending(await countPending()); setReady(true); }).catch(() => setError('হিসাব খুলতে সমস্যা হয়েছে। ব্রাউজারের স্টোরেজ দেখুন।'));
+    initialize().then(async () => { const s = await db.settings.get('main'); const session = await db.session.get('main'); setLocked(Boolean(session && s?.pin_hash)); setHidden(s?.privacy_default ?? false); setPending(await countPending()); setReady(true); }).catch(() => setError('হিসাব খুলতে সমস্যা হয়েছে। ব্রাউজারের স্টোরেজ দেখুন।'));
     const connected = () => setOnline(navigator.onLine); connected();
     window.addEventListener('online', connected); window.addEventListener('offline', connected);
     if (navigator.storage?.persist) navigator.storage.persist().then(ok => setStorage(ok ? 'স্থায়ী স্টোরেজ চালু' : 'স্থায়ী স্টোরেজ মেলেনি — ব্রাউজারের ডেটা মুছবেন না')).catch(() => setStorage('স্টোরেজ যাচাই করা যায়নি'));
@@ -56,8 +61,15 @@ export function HisabProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const session = data?.session;
     if (!ready || !session?.name) return;
-    void db.settings.update('main', { shop_name: session.shop_name, owner_name: session.name, updated_at: Date.now() });
-  }, [ready, data?.session?.name, data?.session?.shop_name]);
+    void db.settings.update('main', { shop_name: session.shop_name, shop_id: session.shop_id, owner_name: session.name, updated_at: Date.now() });
+  }, [ready, data?.session?.name, data?.session?.shop_name, data?.session?.shop_id]);
+  useEffect(() => {
+    if (!ready || !data) return;
+    const token = data.session?.token ?? '';
+    if (seenToken.current === null) { seenToken.current = token; return; }
+    if (token && token !== seenToken.current) setLocked(false);
+    seenToken.current = token;
+  }, [ready, data, data?.session?.token]);
   useEffect(() => {
     if (!ready || !online || !data?.session) return;
     void syncNow();

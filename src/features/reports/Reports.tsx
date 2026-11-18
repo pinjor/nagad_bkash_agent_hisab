@@ -46,7 +46,8 @@ function sum(lines: Line[], type: string) {
 }
 
 export function Reports() {
-  const { role, settings, online } = useHisab();
+  const { settings, online, role } = useHisab();
+  const historyOnly = role === 'employee';
   const [range, setRange] = useState<(typeof ranges)[number]['id']>('7');
   const [kind, setKind] = useState('');
   const [pocket, setPocket] = useState('');
@@ -66,11 +67,10 @@ export function Reports() {
     });
   }, []);
   useEffect(() => {
-    if (role !== 'admin' || !online) return;
+    if (!online) return;
     const query = new URLSearchParams({ range, kind, pocket });
     api<{ days: Day[] }>(`/api/reports/days?${query}`).then((body) => { setServer(body.days); setError(''); }).catch(() => setError('রিপোর্ট আসেনি'));
-  }, [role, online, range, kind, pocket]);
-  if (role !== 'admin') return <p className="field-hint">রিপোর্ট শুধু মালিক দেখেন।</p>;
+  }, [online, range, kind, pocket]);
   const pending = (local ?? []).filter((row) => inRange(row.date, range) && matchesKind(row.txn_type, kind) && (!pocket || row.pocket_id === pocket));
   const seen = new Set(pending.map((row) => row.id));
   const days: Day[] = server.map((day) => ({ date: day.date, lines: [...pending.filter((row) => row.date === day.date), ...day.lines.filter((line) => !seen.has(line.id))] }));
@@ -97,7 +97,7 @@ export function Reports() {
   ] as const;
   return <div className="report-page">
     <div className="report-top">
-      <p className="field-hint">কোন দিনে কত টাকা ঢুকেছে, বের হয়েছে, কে লিখেছে</p>
+      <p className="field-hint">{historyOnly ? 'আগের হিসাব। কে লিখেছে, কোন পকেট, কত টাকা।' : 'কোন দিনে কত টাকা ঢুকেছে, বের হয়েছে, কে লিখেছে'}</p>
       <div className="report-actions">
         <button type="button" className={`search-open${finding ? ' on' : ''}`} aria-expanded={finding} onClick={() => { setFinding((shown) => !shown); setFind(''); }}><Search />খুঁজুন</button>
         <button type="button" className={`filter-open${filtersOn ? ' on' : ''}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}><SlidersHorizontal />ফিল্টার</button>
@@ -111,16 +111,16 @@ export function Reports() {
       <button type="button" className="day-back" onClick={() => setOpenDate('')}><ArrowLeft />সব দিন</button>
       <header><h2>{dayTitle(chosen.date)}</h2><span>{number(chosenLines.length, digits)}টি হিসাব</span></header>
       <p className="field-hint">{rangeLabel} · {kindText} · {pocketText}</p>
-      <div className="day-rows">{rows(chosenLines).map(([tone, label, amount]) => <div key={label}><span><i className={`tone ${tone}`} />{label}</span><b>{amount}</b></div>)}</div>
+      {!historyOnly && <div className="day-rows">{rows(chosenLines).map(([tone, label, amount]) => <div key={label}><span><i className={`tone ${tone}`} />{label}</span><b>{amount}</b></div>)}</div>}
       <ul className="day-lines">{chosenLines.map((line) => <li key={line.id}><div><strong>{kindLabel[line.txn_type] ?? line.txn_type}</strong><span><PocketMark id={line.pocket_id} />{pocketName[line.pocket_id] ?? 'পকেট'}{line.phone ? ` · ${line.phone}` : ''} · {line.pending ? 'ফোনে আছে' : line.actor || 'মালিক'} · {stamp(line.created_at)}</span></div><b className={line.txn_type === 'CASH_OUT' || line.txn_type === 'LEND' || line.txn_type === 'REPAY_OUT' ? 'out' : 'in'}>{taka(line.amount_paisa, digits)}</b></li>)}</ul>
     </section> : <>
-    <section className="settings-group">
+    {!historyOnly && <section className="settings-group">
       <h2>এই সময়ে</h2>
       <p className="field-hint">{rangeLabel} · {kindText} · {pocketText} · {number(lines.length, digits)}টি হিসাব</p>
       <div className="settings-list report-totals">
         {rows(lines).map(([tone, label, amount]) => <article key={label}><i className={`tone ${tone}`} /><div><h3>{label}</h3></div><strong>{amount}</strong></article>)}
       </div>
-    </section>
+    </section>}
     <section className="settings-group">
       <h2>দিন ধরে</h2>
       <p className="field-hint">একটা দিন চাপলে সেই দিনের প্রতিটি হিসাব খুলবে।</p>
@@ -129,7 +129,7 @@ export function Reports() {
       <div className="day-list">{listed.map((day) => <button type="button" className="day-card day-summary" key={day.date} onClick={() => setOpenDate(day.date)}>
         <header><h2>{dayTitle(day.date)}</h2><span>বিস্তারিত</span></header>
         <p>{number(day.lines.length, digits)}টি হিসাব</p>
-        <div className="stat-grid">{rows(day.lines).map(([tone, label, amount]) => <div key={label}><span><i className={`tone ${tone}`} />{label}</span><b>{amount}</b></div>)}</div>
+        {!historyOnly && <div className="stat-grid">{rows(day.lines).map(([tone, label, amount]) => <div key={label}><span><i className={`tone ${tone}`} />{label}</span><b>{amount}</b></div>)}</div>}
       </button>)}</div>
     </section></>}
   </div>;

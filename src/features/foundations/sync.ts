@@ -2,17 +2,19 @@ import { db, type SessionRow } from './db';
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) { super(message); this.status = status; }
+  token: string;
+  constructor(status: number, message: string, token = "") { super(message); this.status = status; this.token = token; }
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const session = await db.session.get('main');
+  const token = session?.token ?? '';
   const headers = new Headers(init?.headers);
   if (init?.body) headers.set('content-type', 'application/json');
-  if (session?.token) headers.set('authorization', `Bearer ${session.token}`);
+  if (token) headers.set('authorization', `Bearer ${token}`);
   const response = await fetch(path, { ...init, headers, credentials: 'include' });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new ApiError(response.status, body.error || 'failed');
+  if (!response.ok) throw new ApiError(response.status, body.error || 'failed', token);
   return body as T;
 }
 
