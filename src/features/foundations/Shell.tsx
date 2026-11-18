@@ -1,12 +1,20 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from '@tanstack/react-router';
-import { BookOpen, House, Plus, Users, ChartNoAxesCombined, Settings, Eye, EyeOff, Volume2, ShieldCheck, WifiOff, Download, Check, RefreshCw } from 'lucide-react';
+import { BookOpen, House, Plus, Users, ChartNoAxesCombined, Settings, Eye, EyeOff, Volume2, ShieldCheck, Download, Check, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useHisab } from './Provider';
-import { taka } from './money';
+import { number, taka } from './money';
 const items = [{ to: '/', label: 'হোম', icon: House }, { to: '/entry', label: 'নতুন হিসাব', icon: Plus }, { to: '/people', label: 'খাতা', icon: Users }, { to: '/reports', label: 'রিপোর্ট', icon: ChartNoAxesCombined }, { to: '/settings', label: 'সেটিংস', icon: Settings }] as const;
+const pageTitle: Record<string, string> = { '/': 'আজকের হিসাব', '/entry': 'নতুন হিসাব', '/people': 'খাতা', '/reports': 'রিপোর্ট', '/settings': 'সেটিংস', '/employees': 'কর্মচারী' };
+const pageNote: Record<string, string> = { '/': 'আজ কত টাকা আছে', '/entry': 'টাকা ঢোকান বা বের করুন', '/people': 'কার কাছে কত ধার', '/reports': 'দিনের হিসাব দেখুন', '/settings': 'দোকান ও পিন', '/employees': 'যাঁরা হিসাব লেখেন' };
+const TitleContext = createContext<(value: string) => void>(() => {});
+export function usePageTitle(title: string) {
+  const setTitle = useContext(TitleContext);
+  useEffect(() => { setTitle(title); return () => setTitle(''); }, [setTitle, title]);
+}
 export function Shell({ children }: { children: ReactNode }) {
-  const { settings, hidden, setHidden, online, totals, speak } = useHisab(); const path = useLocation().pathname;
+  const { settings, hidden, setHidden, online, totals, speak, role, pending, serverOk } = useHisab(); const path = useLocation().pathname;
+  const [detail, setDetail] = useState('');
   const [install, setInstall] = useState<(Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }) | null>(null);
   const [update, setUpdate] = useState(false);
   useEffect(() => {
@@ -15,18 +23,21 @@ export function Shell({ children }: { children: ReactNode }) {
     window.addEventListener('beforeinstallprompt', handler); window.addEventListener('hisab:update', refresh);
     return () => { window.removeEventListener('beforeinstallprompt', handler); window.removeEventListener('hisab:update', refresh); };
   }, []);
-  return <div className="app-shell">
+  const title = detail || pageTitle[path] || 'আমার হিসাব';
+  const note = detail ? 'এই কর্মচারীর কাজ' : pageNote[path] || 'আপনার প্রতিদিনের খাতা';
+  const link = !online ? (pending ? `অফলাইন · ফোনে ${number(pending, settings?.digits)}` : 'অফলাইন') : !serverOk ? (pending ? `ফোনে ${number(pending, settings?.digits)}` : 'সার্ভার ধীর') : pending ? `ফোনে ${number(pending, settings?.digits)}` : '';
+  return <TitleContext.Provider value={setDetail}><div className="app-shell">
     <aside className="desktop-sidebar"><Link to="/" className="brand"><span className="brand-mark"><BookOpen /></span><span>আমার হিসাব<small>আপনার প্রতিদিনের খাতা</small></span></Link>
       <nav aria-label="প্রধান মেনু">{items.map(item => <Button key={item.to} variant="nav" size="touch" asChild><Link to={item.to} className={path === item.to ? 'active' : ''}><item.icon /><span>{item.label}</span>{path === item.to && <span className="nav-dot" />}</Link></Button>)}</nav>
       <div className="sidebar-foot"><ShieldCheck /><span>হিসাব এই ফোনে থাকে<small>আপনার টাকা, আপনার কাছে</small></span></div>
     </aside>
-    <div className="main-shell"><header className="topbar"><div className="shop-title"><div className="shop-icon"><BookOpen /></div><span>{settings?.shop_name ?? 'আমার দোকান'}<small><span className="connection-dot" />{online ? 'এই ফোনে সেভ হয়' : 'অফলাইন'}</small></span></div>
-      <div className="header-actions"><span className="local-chip">{online ? <ShieldCheck /> : <WifiOff />}{online ? 'ফোনে সুরক্ষিত' : 'অফলাইন'}</span><Button variant="ghost" size="touch" title={hidden ? 'টাকা দেখান' : 'টাকা লুকান'} aria-label={hidden ? 'টাকা দেখান' : 'টাকা লুকান'} onClick={() => setHidden(!hidden)}>{hidden ? <EyeOff /> : <Eye />}</Button><Button variant="ghost" size="touch" aria-label="হিসাব শুনুন" title="হিসাব শুনুন" onClick={() => speak(`আমার মোট টাকা ${taka(Object.values(totals).reduce((a,b) => a+b,0), settings?.digits)}`)}><Volume2 /></Button></div>
+    <div className="main-shell"><header className="topbar"><h1 className="shop-title"><span>{title}</span><small className={link ? (online ? 'link-wait' : 'link-offline') : ''}>{note}{link ? ` · ${link}` : ''}</small></h1>
+      <div className="header-actions"><span className="local-chip"><ShieldCheck />{role === 'employee' ? 'কর্মচারী' : 'মালিক'}</span><Button variant="ghost" size="touch" title={hidden ? 'টাকা দেখান' : 'টাকা লুকান'} aria-label={hidden ? 'টাকা দেখান' : 'টাকা লুকান'} onClick={() => setHidden(!hidden)}>{hidden ? <EyeOff /> : <Eye />}</Button><Button variant="ghost" size="touch" aria-label="হিসাব শুনুন" title="হিসাব শুনুন" onClick={() => speak(`আমার মোট টাকা ${taka(Object.values(totals).reduce((a,b) => a+b,0), settings?.digits)}`)}><Volume2 /></Button></div>
     </header>
     {install && <div className="app-notice"><Download /><span>ফোনে আমার হিসাব</span><Button variant="outline" size="touch" onClick={async () => { await install.prompt(); await install.userChoice; setInstall(null); }}><Download />ইনস্টল করুন</Button></div>}
     {update && <div className="app-notice"><RefreshCw /><span>নতুন আপডেট আছে</span><Button variant="outline" size="touch" onClick={() => window.location.reload()}><Check />আপডেট করুন</Button></div>}
     <main className="page-content">{children}</main><footer className="desktop-footer"><ShieldCheck />হিসাব সেভ হয় এই ফোনে<span>আমার হিসাব</span></footer>
     </div>
     <nav className="mobile-nav" aria-label="প্রধান মেনু">{items.map(item => <Button key={item.to} variant="nav" size="touch" asChild><Link to={item.to} className={path === item.to ? 'active' : ''}><item.icon /><span>{item.label}</span></Link></Button>)}</nav>
-  </div>;
+  </div></TitleContext.Provider>;
 }

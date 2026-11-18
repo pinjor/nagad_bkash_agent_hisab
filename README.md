@@ -22,3 +22,18 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Docker
+
+From this folder, or from the `hishab-platform` root:
+
+```sh
+npm run docker:up
+```
+
+App listens on http://localhost:3010 (host 3000 is left free; set `APP_PORT` to change it). Ledger data stays in the browser (IndexedDB), not in the container.
+
+```sh
+npm run docker:down
+npm run docker:logs
+```

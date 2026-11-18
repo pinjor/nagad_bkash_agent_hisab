@@ -1,0 +1,9 @@
+node_modules
+.output
+dist
+.git
+.lovable
+*.log
+.nitro
+.tanstack
+.wrangler

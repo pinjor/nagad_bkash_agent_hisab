@@ -13,6 +13,9 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 export default defineConfig({
   vite: { plugins: [VitePWA({
     strategies: "generateSW", filename: "sw.js", registerType: "autoUpdate", injectRegister: null,
+    // Nitro snapshots the Vite `public/` dir into `.output/public`. Default `dist/`
+    // is not served, so the worker 404s in Docker.
+    outDir: "public",
     devOptions: { enabled: false },
     manifest: { name: "আমার হিসাব", short_name: "আমার হিসাব", lang: "bn", start_url: "/", scope: "/", display: "standalone", theme_color: "#14532d", background_color: "#f7f9f7", icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any maskable" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }] },
     workbox: { globPatterns: ["**/*.{js,css,woff,woff2,png,ico}"], navigateFallback: null, navigationPreload: true,
@@ -26,4 +29,7 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Lovable sandbox still forces cloudflare-module. Local and Docker builds
+  // need a Node server so `npm run docker:up` can run the output.
+  nitro: { preset: "node-server" },
 });

@@ -11,7 +11,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "docker:up": "docker compose up --build -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f web"
   },
   "overrides": {
     "rolldown": "1.2.1"
@@ -60,7 +63,9 @@
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.575.0",
+    "postgres": "^4.1.1",
     "react": "^19.2.0",
+    "react-bangla-pay-icons": "^1.1.1",
     "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.71.2",
@@ -89,6 +94,7 @@
     "eslint-plugin-prettier": "^5.2.6",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
+    "fake-indexeddb": "^6.2.8",
     "globals": "^15.15.0",
     "jsdom": "^20.0.3",
     "nitro": "3.0.260603-beta",
