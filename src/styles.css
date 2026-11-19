@@ -905,6 +905,9 @@ button.staff-card header strong { font-size: 16px; }
 .settings-list.report-totals article { min-height: 0; padding: 6px 10px; }
 .report-page { gap: 8px; }
 @media (max-width: 800px) {
-  .lock-screen { align-items: center; padding-left: 24px; padding-right: 24px; }
-  .auth-card, .lock-inner { width: 100%; max-width: 400px; }
+  .lock-screen { align-items: center; padding: 16px 18px calc(16px + env(safe-area-inset-bottom)); }
+  .auth-card, .lock-inner { width: 100%; max-width: 640px; }
+  .auth-card { padding: 22px 18px 18px; gap: 12px; }
+  .auth-card h1 { font-size: 30px; }
+  .auth-card .keypad-button, .lock-inner .keypad-button { height: 56px; min-height: 52px; font-size: 26px; }
 }
