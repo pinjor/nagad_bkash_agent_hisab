@@ -1,0 +1,56 @@
+name: Deploy HISAB
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Stage VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGE_HOST }}
+          username: ${{ secrets.STAGE_USER }}
+          key: ${{ secrets.STAGE_KEY }}
+          port: 22
+          command_timeout: 30m
+
+          script: |
+            set -e
+
+            cd /var/www/hisab
+
+            echo "Fetching latest code..."
+            git fetch origin
+
+            echo "Switching to main branch..."
+            git checkout main
+            git reset --hard origin/main
+
+            if [ ! -f .env ]; then
+              echo "ERROR: /var/www/hisab/.env does not exist"
+              exit 1
+            fi
+
+            echo "Validating Docker Compose..."
+            docker compose config --quiet
+
+            echo "Building Docker images..."
+            docker compose build
+
+            echo "Starting containers..."
+            docker compose up -d --remove-orphans
+
+            echo "Container status:"
+            docker compose ps
+
+            echo "Removing unused Docker images..."
+            docker image prune -f
+
+            echo "HISAB deployment completed successfully."
