@@ -34,7 +34,7 @@ db.version(1).stores({ settings: 'id', pockets: 'id, code, sort', people: 'id, n
 db.version(2).stores({ loans: 'id, person_id, synced', loan_events: 'id, loan_id, synced', session: 'id' });
 export const seedPockets: Pocket[] = [
   ['CASH', 'হাতে নগদ', 'cash', 'cash', 'banknote'], ['BKASH', 'বিকাশ', 'mfs', 'bkash', 'send'],
-  ['NAGAD', 'নগদ', 'mfs', 'nagad', 'sun'], ['ROCKET', 'রকেট', 'mfs', 'rocket', 'rocket'], ['FLEXI', 'ফ্লেক্সিলোড', 'flexi', 'flexi', 'smartphone'], ['PHARMA', 'ফার্মেসি', 'pharma', 'pharma', 'pill'],
+  ['NAGAD', 'নগদ', 'mfs', 'nagad', 'sun'], ['ROCKET', 'রকেট', 'mfs', 'rocket', 'rocket'], ['FLEXI', 'ফ্লেক্সিলোড', 'flexi', 'flexi', 'smartphone'], ['PHARMA', 'ফার্মেসি', 'pharma', 'pharma', 'pill'], ['MOBILE', 'মোবাইল', 'mobile', 'mobile', 'smartphone'],
 ].map(([id, name_bn, type, color, icon], sort) => ({ id, code: id, name_bn, type, color, icon, sort, active: true, opening_balance_paisa: 0 }));
 export async function initialize() {
   await db.transaction('rw', db.pockets, db.settings, async () => {
@@ -75,13 +75,13 @@ export async function voidOpening(id: string) {
     await db.audit_log.add({ id: newId(), entity_id: id, action: 'void', reason: 'ফিরিয়ে নিন', at: Date.now() });
   });
 }
-export async function queueEntry(txn_type: string, pocket_id: string, amount_paisa: number, extra?: { pocket_to?: string; phone?: string }) {
+export async function queueEntry(txn_type: string, pocket_id: string, amount_paisa: number, extra?: { pocket_to?: string; phone?: string; party?: string }) {
   const id = newId(); const now = Date.now(); const device_id = await deviceId(); const writer = await writerName();
   const legs = extra?.pocket_to
     ? [{ id: newId(), txn_id: id, pocket_id, amount_paisa: -amount_paisa }, { id: newId(), txn_id: id, pocket_id: extra.pocket_to, amount_paisa }]
     : [{ id: newId(), txn_id: id, pocket_id, amount_paisa: txn_type === 'CASH_OUT' ? -amount_paisa : amount_paisa }];
   await db.transaction('rw', db.transactions, db.txn_legs, async () => {
-    await db.transactions.add({ id, txn_type, amount_paisa, date: new Date().toLocaleDateString('en-CA'), phone: extra?.phone ?? '', writer, created_at: now, updated_at: now, device_id, synced: false, version: 1, deleted: false, status: 'active' });
+    await db.transactions.add({ id, txn_type, amount_paisa, date: new Date().toLocaleDateString('en-CA'), phone: extra?.phone ?? '', party: extra?.party ?? '', writer, created_at: now, updated_at: now, device_id, synced: false, version: 1, deleted: false, status: 'active' });
     await db.txn_legs.bulkAdd(legs);
   });
   return id;

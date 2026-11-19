@@ -7,5 +7,6 @@ export function PocketMark({ id }: { id: string }) {
   if (id === 'ROCKET') return <Rocket className="pay-mark" aria-hidden />;
   if (id === 'FLEXI') return <Smartphone className="plain-mark" aria-hidden />;
   if (id === 'PHARMA') return <Pill className="plain-mark" aria-hidden />;
+  if (id === 'MOBILE') return <Smartphone className="plain-mark" aria-hidden />;
   return <Banknote className="plain-mark" aria-hidden />;
 }

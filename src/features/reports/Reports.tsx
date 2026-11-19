@@ -59,7 +59,7 @@ function chipClass(type: string) {
   return 'repay-out';
 }
 function lineTitle(line: Line) {
-  if (dharTypes.has(line.txn_type)) return (line.party ?? '').trim() || 'নাম নেই';
+  if (dharTypes.has(line.txn_type) || line.pocket_id === 'PHARMA' || line.pocket_id === 'MOBILE') return (line.party ?? '').trim() || 'নাম নেই';
   return (line.phone ?? '').trim() || 'ফোন নেই';
 }
 function HisabCards({ items, digits }: { items: Line[]; digits: Parameters<typeof taka>[1] }) {
@@ -145,6 +145,7 @@ export function Reports({ initial }: { initial?: { pocket?: string; kind?: strin
       { key: 'pocket:ROCKET', tone: 'rocket', label: 'রকেট', amount: taka(pocket('ROCKET'), digits), money: '' },
       { key: 'FLEXI', tone: 'flexi', label: 'ফ্লেক্সিলোড', amount: taka(sum(items, 'FLEXI'), digits), money: '' },
       { key: 'pocket:PHARMA', tone: 'pharma', label: 'ফার্মেসি', amount: taka(pocket('PHARMA'), digits), money: '' },
+      { key: 'pocket:MOBILE', tone: 'mobile', label: 'মোবাইল', amount: taka(pocket('MOBILE'), digits), money: '' },
       { key: 'LEND', tone: 'lend', label: 'ধার দিয়েছি', amount: taka(dhar.given, digits), money: 'money-gave' },
       { key: 'REPAY_IN', tone: 'repay-in', label: 'ফেরত পেয়েছি', amount: taka(dhar.backIn, digits), money: 'money-gave' },
       { key: 'BORROW', tone: 'borrow', label: 'ধার নিয়েছি', amount: taka(dhar.taken, digits), money: 'money-took' },
@@ -164,7 +165,6 @@ export function Reports({ initial }: { initial?: { pocket?: string; kind?: strin
   </div>;
   return <div className="report-page">
     <div className="report-top">
-      <p className="field-hint">{historyOnly ? 'আগের হিসাব। কে লিখেছে, কোন পকেট, কত টাকা।' : 'কোন দিনে কত টাকা ঢুকেছে, বের হয়েছে, কে লিখেছে'}</p>
       <div className="report-actions">
         <button type="button" className={`search-open${finding ? ' on' : ''}`} aria-expanded={finding} onClick={() => { setFinding((shown) => !shown); setFind(''); }}><Search />খুঁজুন</button>
         <button type="button" className={`filter-open${filtersOn ? ' on' : ''}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}><SlidersHorizontal />ফিল্টার</button>
@@ -187,11 +187,9 @@ export function Reports({ initial }: { initial?: { pocket?: string; kind?: strin
       <div className="settings-list report-totals">
         {stats(lines).map((row) => <article key={row.key}><i className={`tone ${row.tone}`} /><div><h3>{row.label}</h3></div><strong className={row.money}>{row.amount}</strong></article>)}
       </div>
-      <HisabCards items={lines} digits={digits} />
     </section>}
     <section className="settings-group">
       <h2>দিন ধরে</h2>
-      <p className="field-hint">একটা দিন চাপলে সেই দিনের প্রতিটি হিসাব খুলবে।</p>
       {days.length === 0 && <p className="khata-empty">এই ফিল্টারে কোনো হিসাব নেই।</p>}
       {days.length > 0 && listed.length === 0 && <p className="khata-empty">কিছু মেলেনি।</p>}
       <div className="day-list">{listed.map((day) => <article className="day-card day-summary" key={day.date}>

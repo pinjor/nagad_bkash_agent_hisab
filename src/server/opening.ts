@@ -7,6 +7,7 @@ const pockets = [
   ["ROCKET", "রকেট", 3],
   ["FLEXI", "ফ্লেক্সিলোড", 4],
   ["PHARMA", "ফার্মেসি", 5],
+  ["MOBILE", "মোবাইল", 6],
 ] as const;
 
 type Query = (strings: TemplateStringsArray, ...values: unknown[]) => PromiseLike<readonly unknown[]>;

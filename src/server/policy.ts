@@ -1,4 +1,4 @@
-export const POCKETS = ["CASH", "BKASH", "NAGAD", "ROCKET", "FLEXI", "PHARMA"] as const;
+export const POCKETS = ["CASH", "BKASH", "NAGAD", "ROCKET", "FLEXI", "PHARMA", "MOBILE"] as const;
 export type Role = "admin" | "employee";
 
 export interface SyncTxn {

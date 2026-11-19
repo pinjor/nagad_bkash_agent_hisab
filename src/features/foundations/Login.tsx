@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { LockKeyhole, ShoppingBag, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { db, newId } from './db';
@@ -28,6 +29,8 @@ export function Login({ online }: { online: boolean }) {
   const [wrong, setWrong] = useState(false);
   const [shake, setShake] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [pad, setPad] = useState<'phone' | 'pin'>('phone');
+  const go = useNavigate();
   const sent = useRef('');
   const wrongGen = useRef(0);
   async function submit() {
@@ -39,6 +42,7 @@ export function Login({ online }: { online: boolean }) {
       const result = await api<{ token: string; role: 'admin' | 'employee'; user_id: string; shop_id: string; name: string; shop_name: string }>('/api/login', { method: 'POST', body: JSON.stringify({ phone: phoneDigits(phone), pin }) });
       await db.settings.update('main', { shop_name: result.shop_name, shop_id: result.shop_id, ...(result.role === 'admin' ? { owner_name: result.name } : {}), updated_at: Date.now() });
       await db.session.put({ id: 'main', token: result.token, role: result.role, user_id: result.user_id, shop_id: result.shop_id, name: result.name, shop_name: result.shop_name, pending: false, device_id: newId() });
+      await go({ to: '/' });
     } catch (cause) {
       const gen = ++wrongGen.current;
       setError(authError(cause));
@@ -77,7 +81,16 @@ export function Login({ online }: { online: boolean }) {
     wrongGen.current += 1;
     setWrong(false);
     setError('');
-    setPin(next);
+    setPin(next.slice(0, 4));
+  }
+  function onPad(next: string) {
+    if (pad === 'phone') {
+      const typed = phoneDigits(next);
+      setPhone(typed);
+      if (typed.length === 11) setPad('pin');
+      return;
+    }
+    changePin(next);
   }
   const dots = wrong ? 'pin-dots wrong' : busy ? 'pin-dots checking' : 'pin-dots';
   return <main className="lock-screen"><div className="login-shell">
@@ -91,13 +104,13 @@ export function Login({ online }: { online: boolean }) {
       <span className="login-badge" aria-hidden><ShoppingBag /></span>
       <h1>আমার হিসাব</h1>
       <p className="auth-lead">ফোন নম্বর লিখুন, তারপর পিন</p>
-      <label className="login-field"><span><Smartphone /><input className="text-input" aria-label="ফোন" placeholder="যেমন ০১৭১১০০০০০০" inputMode="tel" enterKeyHint="done" value={phone} onChange={(event) => setPhone(phoneDigits(event.target.value))} maxLength={11} autoComplete="tel" /></span></label>
+      <label className={`login-field${pad === 'phone' ? ' on' : ''}`}><span onClick={() => setPad('phone')}><Smartphone /><input className="text-input" aria-label="ফোন" placeholder="যেমন ০১৭১১০০০০০০" inputMode="none" enterKeyHint="done" value={phone} onFocus={() => setPad('phone')} onChange={(event) => setPhone(phoneDigits(event.target.value))} maxLength={11} autoComplete="tel" /></span></label>
       <div className="auth-pin">
-        <div key={shake} className={`login-pin${wrong ? ' wrong' : ''}`}>
+        <div key={shake} className={`login-pin${wrong ? ' wrong' : ''}${pad === 'pin' ? ' on' : ''}`} onClick={() => setPad('pin')}>
           <LockKeyhole />
           {pin.length === 0 ? <span className="login-pin-hint">৪ সংখ্যার পিন</span> : <span className={dots} aria-label={wrong ? 'পিন মিলেনি' : `${pin.length}টি সংখ্যা`}>{Array.from({ length: 4 }, (_, i) => <span key={i} className={i < pin.length ? 'filled' : ''} />)}</span>}
         </div>
-        <Keypad value={pin} onChange={changePin} pin />
+        <Keypad value={pad === 'phone' ? phoneDigits(phone) : pin} onChange={onPad} pin={pad === 'pin'} max={pad === 'phone' ? 11 : 4} />
         {error && <p className="form-error" role="alert">{error}</p>}
         <Button className="login-go" variant="ledger" size="primary" disabled={pin.length !== 4 || !phoneOk(phone) || busy || wrong} onClick={submit}>ঢুকুন</Button>
       </div>

@@ -30,6 +30,6 @@ describe("opening owner", () => {
     const db = memorySql([]);
     await expect(seedOpeningOwner(db.sql, { OPENING_PHONE: "01711111111", OPENING_PIN: "2468" })).resolves.toBe("created");
     expect(db.queries.filter((query) => query.startsWith("insert into users"))).toHaveLength(1);
-    expect(db.queries.filter((query) => query.startsWith("insert into pockets"))).toHaveLength(6);
+    expect(db.queries.filter((query) => query.startsWith("insert into pockets"))).toHaveLength(7);
   });
 });

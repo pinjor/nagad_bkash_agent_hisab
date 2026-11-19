@@ -97,5 +97,8 @@ alter table transactions add column if not exists party text not null default ''
 insert into pockets (shop_id, id, name_bn, sort)
 select s.id, 'PHARMA', 'ফার্মেসি', 5 from shops s
 on conflict do nothing;
+insert into pockets (shop_id, id, name_bn, sort)
+select s.id, 'MOBILE', 'মোবাইল', 6 from shops s
+on conflict do nothing;
 create index if not exists transactions_shop_date on transactions (shop_id, date);
 create index if not exists loans_shop_status on loans (shop_id, status);

@@ -2,8 +2,9 @@ import type { MouseEvent, PointerEvent } from 'react';
 import { Delete, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { number, normalizeDigits, type Digits } from './money';
-export function Keypad({ value, onChange, pin = false, digits = 'bn' }: { value: string; onChange: (value: string) => void; pin?: boolean; digits?: Digits }) {
-  const append = (key: string) => { if (value.length < (pin ? 4 : 10)) onChange(normalizeDigits(value + key)); };
+export function Keypad({ value, onChange, pin = false, digits = 'bn', max }: { value: string; onChange: (value: string) => void; pin?: boolean; digits?: Digits; max?: number }) {
+  const limit = max ?? (pin ? 4 : 10);
+  const append = (key: string) => { if (value.length < limit) onChange(normalizeDigits(value + key)); };
   const press = (event: PointerEvent<HTMLButtonElement>, next: () => void) => {
     const active = document.activeElement;
     if (active instanceof HTMLElement && active !== event.currentTarget) active.blur();

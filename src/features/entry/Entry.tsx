@@ -16,6 +16,8 @@ export function Entry() {
   const [kind, setKind] = useState<(typeof kinds)[number]['id']>('CASH_IN');
   const [pocket, setPocket] = useState('CASH');
   const [phone, setPhone] = useState('');
+  const [item, setItem] = useState('');
+  const [qty, setQty] = useState('');
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
   const [saved, setSaved] = useState<{ title: string; detail: string } | null>(null);
@@ -23,28 +25,39 @@ export function Entry() {
   const balance = Object.values(totals).reduce((sum, amount) => sum + amount, 0);
   const money = (amount: number) => (hidden ? '৳ ••••' : taka(amount, digits));
   const dial = phoneDigits(phone);
+  const skipPhone = pocket === 'PHARMA' || pocket === 'MOBILE';
   const parsed = (() => { try { return toPaisa(value || '0'); } catch { return null; } })();
   const shown = parsed == null ? '' : number(parsed / 100, digits);
+  const party = pocket === 'PHARMA' ? `${item.trim()} × ${qty.trim()}` : pocket === 'MOBILE' ? item.trim() : '';
+
+  function ready() {
+    if (parsed == null) return 'সঠিক টাকা লিখুন';
+    if (!parsed) return 'টাকার পরিমাণ দিন';
+    if (kind === 'CASH_OUT' && parsed > balance) return 'ব্যবহারযোগ্য ব্যালেন্সের বেশি যাবে না';
+    if (pocket === 'PHARMA' && !item.trim()) return 'ওষুধের নাম দিন';
+    if (pocket === 'PHARMA' && !qty.trim()) return 'পরিমাণ দিন';
+    if (pocket === 'MOBILE' && !item.trim()) return 'মোবাইলের নাম দিন';
+    if (!skipPhone && !phoneOk(dial)) return 'ফোন নম্বর ১১ সংখ্যা, ০১ দিয়ে';
+    return '';
+  }
 
   function review() {
-    setError('');
-    if (parsed == null) { setError('সঠিক টাকা লিখুন'); return; }
-    if (!parsed) { setError('টাকার পরিমাণ দিন'); return; }
-    if (kind === 'CASH_OUT' && parsed > balance) { setError('ব্যবহারযোগ্য ব্যালেন্সের বেশি যাবে না'); return; }
-    if (dial && !phoneOk(dial)) { setError('ফোন নম্বর ১১ সংখ্যা, ০১ দিয়ে'); return; }
-    setStep('summary');
+    const problem = ready();
+    setError(problem);
+    if (!problem) setStep('summary');
   }
 
   async function save() {
     setError('');
     try {
+      const problem = ready();
+      if (problem) { setError(problem); return; }
       const amount = toPaisa(value || '0');
-      if (!amount) { setError('টাকার পরিমাণ দিন'); return; }
-      if (kind === 'CASH_OUT' && amount > balance) { setError('ব্যবহারযোগ্য ব্যালেন্সের বেশি যাবে না'); return; }
-      if (dial && !phoneOk(dial)) { setError('ফোন নম্বর ১১ সংখ্যা, ০১ দিয়ে'); return; }
-      await queueEntry(kind, pocket, amount, { phone: dial });
+      await queueEntry(kind, pocket, amount, { phone: skipPhone ? '' : dial, party });
       setValue('');
       setPhone('');
+      setItem('');
+      setQty('');
       setStep('write');
       setSaved({ title: 'হিসাব সেভ হয়েছে', detail: `${kindLabel[kind]} · ${pocketName[pocket] ?? 'পকেট'} · ${taka(amount, digits)}` });
       await syncNow();
@@ -61,10 +74,20 @@ export function Entry() {
       <div className="pocket-circles entry-pockets" role="group" aria-label="পকেট">
         {seedPockets.map((item) => <button type="button" key={item.id} className={`pocket-circle ${item.color}${pocket === item.id ? ' on' : ''}`} aria-pressed={pocket === item.id} onClick={() => setPocket(item.id)}><span className="pocket-bubble"><PocketMark id={item.id} /></span><span className="pocket-name">{item.name_bn}</span></button>)}
       </div>
-      <section className="send-block">
-        <p>প্রাপক</p>
+      {!skipPhone && <section className="send-block">
+        <p>ফোন</p>
         <input className="send-phone" aria-label="ফোন" placeholder="ফোন নম্বর, ০১ দিয়ে ১১ সংখ্যা" inputMode="tel" maxLength={11} value={phone} onChange={(event) => setPhone(phoneDigits(event.target.value))} />
-      </section>
+      </section>}
+      {pocket === 'PHARMA' && <section className="send-block">
+        <p>ওষুধের নাম</p>
+        <input className="send-phone" aria-label="ওষুধের নাম" placeholder="ওষুধের নাম" maxLength={80} value={item} onChange={(event) => setItem(event.target.value)} />
+        <p>পরিমাণ</p>
+        <input className="send-phone" aria-label="পরিমাণ" placeholder="কতটা" inputMode="numeric" maxLength={8} value={qty} onChange={(event) => setQty(event.target.value)} />
+      </section>}
+      {pocket === 'MOBILE' && <section className="send-block">
+        <p>মোবাইলের নাম</p>
+        <input className="send-phone" aria-label="মোবাইলের নাম" placeholder="মোবাইলের নাম" maxLength={80} value={item} onChange={(event) => setItem(event.target.value)} />
+      </section>}
       <section className="send-amount">
         <p>পরিমাণ</p>
         <label className={`send-figure${value ? ' has-value' : ''}`}>
@@ -79,7 +102,10 @@ export function Entry() {
       <p className="send-total">{hidden ? '৳ ••••' : `৳${shown}`}</p>
       <div className="send-row"><span>ধরন</span><b>{kindLabel[kind]}</b></div>
       <div className="send-row"><span>পকেট</span><b><PocketMark id={pocket} />{pocketName[pocket]}</b></div>
-      <div className="send-row"><span>ফোন</span><b>{dial || 'ফোন নেই'}</b></div>
+      {pocket === 'PHARMA' && <div className="send-row"><span>ওষুধের নাম</span><b>{item.trim()}</b></div>}
+      {pocket === 'PHARMA' && <div className="send-row"><span>পরিমাণ</span><b>{qty.trim()}</b></div>}
+      {pocket === 'MOBILE' && <div className="send-row"><span>মোবাইলের নাম</span><b>{item.trim()}</b></div>}
+      {!skipPhone && <div className="send-row"><span>ফোন</span><b>{dial}</b></div>}
       <div className="send-row"><span>ব্যবহারযোগ্য ব্যালেন্স</span><b>{money(balance)}</b></div>
       {error && <p className="form-error send-error" role="alert">{error}</p>}
       <button type="button" className="send-save" onClick={save}>সেভ করুন</button>

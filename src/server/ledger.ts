@@ -10,6 +10,7 @@ const pocketSeed = [
   ["ROCKET", "রকেট", 3],
   ["FLEXI", "ফ্লেক্সিলোড", 4],
   ["PHARMA", "ফার্মেসি", 5],
+  ["MOBILE", "মোবাইল", 6],
 ] as const;
 
 function uuid(value: unknown) {
@@ -453,7 +454,7 @@ const historyKinds: Record<string, string[]> = {
 export async function dayHistory(actor: SessionUser, query: { range: string; kind: string; pocket: string; from?: string; to?: string }) {
   const range = query.range === "today" || query.range === "30" || query.range === "all" ? query.range : "7";
   const kinds = historyKinds[query.kind] ?? [];
-  const pocket = ["CASH", "BKASH", "NAGAD", "ROCKET", "FLEXI", "PHARMA"].includes(query.pocket) ? query.pocket : "";
+  const pocket = (POCKETS as readonly string[]).includes(query.pocket) ? query.pocket : "";
   const picked = (value?: string) => value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
   const from = picked(query.from);
   const to = picked(query.to);

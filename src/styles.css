@@ -1233,3 +1233,12 @@ html, body, .app-shell, .main-shell, .page-content { background: #fff; }
 .send-sheet .send-figure { flex: 0; min-height: 88px; }
 .send-sheet .send-balance { padding: 4px 16px 8px; }
 .send-sheet .send-next { width: calc(100% - 32px); margin: 12px 16px 16px; }
+.send-summary .send-save, .khata-loan .send-save { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; margin: 16px 0 8px; border: 0; border-radius: 16px; background: var(--primary); color: white; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; }
+.login-field.on > span, .login-pin.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.mobile { --pocket-color: var(--phone); }
+.tone.mobile { background: var(--phone); }
+.pocket-more { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 40px; margin-top: 8px; border: 1px solid var(--border); border-radius: 12px; background: #fff; color: var(--primary); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.settings-list.report-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.settings-list.report-totals article { min-width: 0; }
+.day-summary .stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.day-summary .day-open { grid-column: 1 / -1; }
