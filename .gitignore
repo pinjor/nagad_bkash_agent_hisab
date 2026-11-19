@@ -39,3 +39,14 @@ dist-ssr
 
 # Local deployment backups
 *.backup-*
+
+# Local database backups
+*.sql
+*.sql.gz
+*.dump
+
+# Local troubleshooting backups
+*.bak
+*.backup-*
+*.before-*
+*.corrupted-*
