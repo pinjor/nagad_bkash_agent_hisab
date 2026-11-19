@@ -8,7 +8,7 @@ import { usePageTitle } from '../foundations/Shell';
 
 interface StaffActivity { at: string; kind: string; detail: string; amount_paisa: number; phone?: string }
 interface StaffMember {
-  id: string; name: string; created_at: string; txn_count: number;
+  id: string; name: string; phone?: string; created_at: string; txn_count: number;
   cash_in_paisa: number; cash_out_paisa: number; flexi_paisa: number;
   lend_count: number; borrow_count: number; person_count: number;
   last_at: string | null; activity: StaffActivity[];
@@ -16,6 +16,9 @@ interface StaffMember {
 
 function pinDigits(value: string) {
   return normalizeDigits(value).replace(/\D/g, '').slice(0, 4);
+}
+function phoneDigits(value: string) {
+  return normalizeDigits(value).replace(/\D/g, '').slice(0, 11);
 }
 function when(value: string) {
   return new Date(value).toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
@@ -33,12 +36,16 @@ export function EmployeesPage() {
   const { settings, role, online } = useHisab();
   const [adding, setAdding] = useState(false);
   const [staff, setStaff] = useState('');
+  const [staffPhone, setStaffPhone] = useState('');
   const [staffPin, setStaffPin] = useState('');
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [openId, setOpenId] = useState('');
   const [pinFor, setPinFor] = useState(false);
   const [nextPin, setNextPin] = useState('');
   const [pinSaved, setPinSaved] = useState(false);
+  const [phoneFor, setPhoneFor] = useState(false);
+  const [nextPhone, setNextPhone] = useState('');
+  const [phoneSaved, setPhoneSaved] = useState(false);
   const [error, setError] = useState('');
   const digits = settings?.digits;
   const load = () => api<StaffMember[]>('/api/employees').then(setStaffList).catch(() => setError('তালিকা আসেনি'));
@@ -46,14 +53,27 @@ export function EmployeesPage() {
   async function addStaff() {
     if (role !== 'admin') return;
     if (!staff.trim()) { setError('নাম দিন'); return; }
+    if (!/^01\d{9}$/.test(phoneDigits(staffPhone))) { setError('ফোন নম্বর ১১ সংখ্যা, ০১ দিয়ে'); return; }
     if (staffPin.length !== 4) { setError('৪ সংখ্যার পিন দিন'); return; }
     if (!online) { setError('কর্মচারী যোগ করতে ইন্টারনেট লাগবে'); return; }
     try {
-      await api('/api/employees', { method: 'POST', body: JSON.stringify({ name: staff.trim(), pin: staffPin }) });
-      setStaff(''); setStaffPin(''); setError(''); setAdding(false);
+      await api('/api/employees', { method: 'POST', body: JSON.stringify({ name: staff.trim(), phone: phoneDigits(staffPhone), pin: staffPin }) });
+      setStaff(''); setStaffPhone(''); setStaffPin(''); setError(''); setAdding(false);
       await load();
     } catch (cause) {
-      setError(cause instanceof ApiError && cause.message === 'name_taken' ? 'এই নাম আছে' : 'যোগ হয়নি');
+      const message = cause instanceof ApiError && cause.message === 'name_taken' ? 'এই নাম আছে' : cause instanceof ApiError && cause.message === 'phone_taken' ? 'এই ফোন আছে' : 'যোগ হয়নি';
+      setError(message);
+    }
+  }
+  async function changeStaffPhone(id: string) {
+    if (role !== 'admin' || !/^01\d{9}$/.test(phoneDigits(nextPhone))) { setError('ফোন নম্বর ১১ সংখ্যা, ০১ দিয়ে'); return; }
+    if (!online) { setError('ফোন বদলাতে ইন্টারনেট লাগবে'); return; }
+    try {
+      const saved = await api<{ phone: string }>(`/api/employees/${id}/phone`, { method: 'POST', body: JSON.stringify({ phone: phoneDigits(nextPhone) }) });
+      setStaffList((rows) => rows.map((row) => row.id === id ? { ...row, phone: saved.phone } : row));
+      setPhoneFor(false); setNextPhone(''); setPhoneSaved(true); setError('');
+    } catch (cause) {
+      setError(cause instanceof ApiError && cause.message === 'phone_taken' ? 'এই ফোন আছে' : 'ফোন বদলায়নি');
     }
   }
   async function changeStaffPin(id: string) {
@@ -68,8 +88,8 @@ export function EmployeesPage() {
   usePageTitle(open?.name ?? '');
   if (role !== 'admin') return <p className="field-hint">শুধু মালিক দেখতে পারেন।</p>;
   if (open) return <div className="report-page">
-    <Button variant="ghost" size="touch" className="day-back" onClick={() => { setOpenId(''); setPinFor(false); setNextPin(''); setPinSaved(false); setError(''); }}><ArrowLeft />সব কর্মচারী</Button>
-    <p className="field-hint">যোগ {when(open.created_at)}{open.last_at ? ` · শেষ কাজ ${when(open.last_at)}` : ''}</p>
+    <Button variant="ghost" size="touch" className="day-back" onClick={() => { setOpenId(''); setPinFor(false); setNextPin(''); setPinSaved(false); setPhoneFor(false); setNextPhone(''); setPhoneSaved(false); setError(''); }}><ArrowLeft />সব কর্মচারী</Button>
+    <p className="field-hint">{open.phone || 'ফোন নেই'} · যোগ {when(open.created_at)}{open.last_at ? ` · শেষ কাজ ${when(open.last_at)}` : ''}</p>
     <section className="loan-card"><h2>হিসাব</h2><div className="stat-grid">
       <div><span><i className="tone in" />ঢুকিয়েছে</span><b>{taka(open.cash_in_paisa, digits)}</b></div>
       <div><span><i className="tone out" />বের করেছে</span><b>{taka(open.cash_out_paisa, digits)}</b></div>
@@ -79,6 +99,7 @@ export function EmployeesPage() {
       <div><span><i className="tone in" />মানুষ</span><b>{number(open.person_count, digits)} জন</b></div>
       <div><span><i className="tone in" />মোট হিসাব</span><b>{number(open.txn_count, digits)}টি</b></div>
     </div></section>
+    <section className="settings-group"><h2>ফোন</h2>{phoneFor ? <div className="staff-fields"><label>নতুন ফোন<input className="text-input" aria-label={`${open.name} এর ফোন`} placeholder="যেমন ০১৭১১০০০০০০" inputMode="tel" maxLength={11} value={nextPhone} onChange={(event) => setNextPhone(phoneDigits(event.target.value))} /></label><Button variant="ledger" size="touch" onClick={() => changeStaffPhone(open.id)}>ফোন সেভ করুন</Button><Button variant="ghost" size="touch" onClick={() => { setPhoneFor(false); setNextPhone(''); }}>বন্ধ</Button></div> : <Button variant="outline" size="touch" onClick={() => { setPhoneFor(true); setNextPhone(open.phone ?? ''); setPhoneSaved(false); setError(''); }}>ফোন বদলান</Button>}{phoneSaved && <p>ফোন বদলেছে</p>}</section>
     <section className="settings-group"><h2>পিন</h2>{pinFor ? <div className="staff-fields"><label>নতুন ৪ সংখ্যার পিন<input className="text-input" aria-label={`${open.name} এর নতুন পিন`} placeholder="যেমন ২২২২" inputMode="numeric" maxLength={4} value={nextPin} onChange={(event) => setNextPin(pinDigits(event.target.value))} /></label><Button variant="ledger" size="touch" onClick={() => changeStaffPin(open.id)}>পিন সেভ করুন</Button><Button variant="ghost" size="touch" onClick={() => { setPinFor(false); setNextPin(''); }}>বন্ধ</Button></div> : <Button variant="outline" size="touch" onClick={() => { setPinFor(true); setNextPin(''); setPinSaved(false); setError(''); }}>পিন বদলান</Button>}{pinSaved && <p>পিন বদলেছে</p>}</section>
     <section className="settings-group"><h2>কাজ</h2>{open.activity.length === 0 ? <p>এখনো কোনো কাজ নেই</p> : <ul className="timeline">{open.activity.map((row, index) => <li key={`${row.at}-${index}`}>{activityLine(row, digits)}</li>)}</ul>}</section>
     {error && <p className="form-error" role="alert">{error}</p>}
@@ -88,11 +109,11 @@ export function EmployeesPage() {
       <div className="report-actions"><Button variant="ledger" size="touch" onClick={() => { setAdding(true); setError(''); }}><UserPlus />নতুন কর্মচারী</Button></div>
     </div>
     {!adding && error && <p className="form-error" role="alert">{error}</p>}
-    {adding && <div className="modal-shade" onClick={() => { setAdding(false); setError(''); }}><section className="wizard" role="dialog" aria-modal="true" aria-label="নতুন কর্মচারী" onClick={(event) => event.stopPropagation()}><div className="wizard-header"><h2>নতুন কর্মচারী</h2><Button variant="ghost" size="touch" aria-label="বন্ধ করুন" onClick={() => { setAdding(false); setError(''); }}><X /></Button></div><div className="wizard-content staff-fields"><label>নাম<input className="text-input" aria-label="কর্মচারীর নাম" placeholder="যেমন রহিম" value={staff} maxLength={60} onChange={(event) => setStaff(event.target.value)} /></label><label>৪ সংখ্যার পিন<input className="text-input" aria-label="কর্মচারীর পিন" placeholder="যেমন ২২২২" inputMode="numeric" maxLength={4} value={staffPin} onChange={(event) => setStaffPin(pinDigits(event.target.value))} /></label><Button variant="ledger" size="touch" onClick={addStaff}>যোগ করুন</Button>{error && <p className="form-error" role="alert">{error}</p>}</div></section></div>}
+    {adding && <div className="modal-shade" onClick={() => { setAdding(false); setError(''); }}><section className="wizard" role="dialog" aria-modal="true" aria-label="নতুন কর্মচারী" onClick={(event) => event.stopPropagation()}><div className="wizard-header"><h2>নতুন কর্মচারী</h2><Button variant="ghost" size="touch" aria-label="বন্ধ করুন" onClick={() => { setAdding(false); setError(''); }}><X /></Button></div><div className="wizard-content staff-fields"><label>নাম<input className="text-input" aria-label="কর্মচারীর নাম" placeholder="যেমন রহিম" value={staff} maxLength={60} onChange={(event) => setStaff(event.target.value)} /></label><label>ফোন<input className="text-input" aria-label="কর্মচারীর ফোন" placeholder="যেমন ০১৭১১০০০০০০" inputMode="tel" maxLength={11} value={staffPhone} onChange={(event) => setStaffPhone(phoneDigits(event.target.value))} /></label><label>৪ সংখ্যার পিন<input className="text-input" aria-label="কর্মচারীর পিন" placeholder="যেমন ২২২২" inputMode="numeric" maxLength={4} value={staffPin} onChange={(event) => setStaffPin(pinDigits(event.target.value))} /></label><Button variant="ledger" size="touch" onClick={addStaff}>যোগ করুন</Button>{error && <p className="form-error" role="alert">{error}</p>}</div></section></div>}
     <section className="settings-group"><h2>সবাই</h2><p className="field-hint">{number(staffList.length, digits)} জন</p>
       {staffList.length === 0 && <p>এখনো কোনো কর্মচারী নেই।</p>}
       <div className="day-list">{staffList.map((item) => <button className="staff-card" key={item.id} onClick={() => { setOpenId(item.id); setError(''); }}>
-        <header><strong>{item.name}</strong><span>যোগ {when(item.created_at)}</span></header>
+        <header><strong>{item.name}</strong><span>{item.phone || 'ফোন নেই'} · যোগ {when(item.created_at)}</span></header>
         <div className="stat-grid">
           <div><span>হিসাব</span><b>{number(item.txn_count, digits)}টি</b></div>
           <div><span>ঢুকিয়েছে</span><b>{taka(item.cash_in_paisa, digits)}</b></div>

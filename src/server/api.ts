@@ -1,5 +1,5 @@
 import { clearSessionCookie, sessionCookie, userFromRequest } from "./auth";
-import { addEmployee, applySync, balances, changeOwnPin, dayHistory, listEmployees, loans, login, people, recentEntries, registerShop, renameShop, repayLoan, report, setEmployeePin, shopReady, today, voidTransaction } from "./ledger";
+import { addEmployee, applySync, balances, changeOwnPin, dayHistory, listEmployees, loans, login, people, recentEntries, registerShop, renameShop, repayLoan, report, setEmployeePhone, setEmployeePin, setOwnPhone, shopReady, today, voidTransaction } from "./ledger";
 
 function json(data: unknown, status = 200, headers?: HeadersInit) {
   const head = new Headers(headers);
@@ -9,7 +9,7 @@ function json(data: unknown, status = 200, headers?: HeadersInit) {
 
 function fail(error: unknown) {
   const message = error instanceof Error ? error.message : "server";
-  const status = message === "forbidden" ? 403 : message === "bad_login" ? 401 : message === "shop_exists" || message === "name_taken" ? 409 : message.startsWith("bad_") ? 400 : 500;
+  const status = message === "forbidden" ? 403 : message === "bad_login" ? 401 : message === "shop_exists" || message === "name_taken" || message === "phone_taken" ? 409 : message.startsWith("bad_") ? 400 : 500;
   if (status === 500) console.error(error);
   return json({ error: status === 500 ? "server" : message }, status);
 }
@@ -45,9 +45,12 @@ export async function handleApi(request: Request) {
     if (request.method === "GET" && path === "/api/reports/days") return json(await dayHistory(user, { range: url.searchParams.get("range") ?? "", kind: url.searchParams.get("kind") ?? "", pocket: url.searchParams.get("pocket") ?? "" }));
     if (request.method === "POST" && path === "/api/sync") return json(await applySync(user, await readJson(request)));
     if (request.method === "POST" && path === "/api/pin") return json(await changeOwnPin(user, await readJson(request)));
+    if (request.method === "POST" && path === "/api/me/phone") return json(await setOwnPhone(user, String((await readJson(request)).phone ?? "")));
     if (request.method === "POST" && path === "/api/employees") return json(await addEmployee(user, await readJson(request)));
     const staffPin = path.match(/^\/api\/employees\/([^/]+)\/pin$/);
     if (request.method === "POST" && staffPin) return json(await setEmployeePin(user, staffPin[1], String((await readJson(request)).pin ?? "")));
+    const staffPhone = path.match(/^\/api\/employees\/([^/]+)\/phone$/);
+    if (request.method === "POST" && staffPhone) return json(await setEmployeePhone(user, staffPhone[1], String((await readJson(request)).phone ?? "")));
     if (request.method === "PATCH" && path === "/api/shop") return json(await renameShop(user, String((await readJson(request)).name ?? "")));
     const loanPatch = path.match(/^\/api\/loans\/([^/]+)$/);
     if (request.method === "PATCH" && loanPatch) return json(await repayLoan(user, loanPatch[1], await readJson(request)));

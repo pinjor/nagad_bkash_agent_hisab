@@ -1,18 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Button } from '@/components/ui/button';
-import { db, newId, type DoorPerson } from './db';
+import { db, newId } from './db';
 import { Keypad } from './Keypad';
+import { normalizeDigits } from './money';
 import { api, ApiError } from './sync';
 
-type DoorShop = { id: string; name: string; people: DoorPerson[] };
+type DoorShop = { id: string; name: string };
 
 function authError(cause: unknown) {
   if (!(cause instanceof ApiError)) return 'সেভ হয়নি। আবার চেষ্টা করুন।';
   if (cause.status === 401 || cause.message === 'bad_login') return 'পিন মিলেনি';
-  if (cause.message === 'shop_exists') return 'এই দোকান আছে। নিজের নাম চাপুন।';
+  if (cause.message === 'shop_exists') return 'এই দোকান আছে। ফোন নম্বর লিখুন।';
   if (cause.message === 'name_taken') return 'এই নাম আছে';
+  if (cause.message === 'phone_taken') return 'এই ফোন আছে';
+  if (cause.message === 'bad_phone') return 'ফোন নম্বর ১১ সংখ্যা, ০১ দিয়ে';
   return 'সেভ হয়নি। আবার চেষ্টা করুন।';
+}
+
+function phoneDigits(value: string) {
+  return normalizeDigits(value).replace(/\D/g, '').slice(0, 11);
+}
+
+function phoneOk(value: string) {
+  return /^01\d{9}$/.test(phoneDigits(value));
 }
 
 function holdForOpen() {
@@ -20,12 +31,8 @@ function holdForOpen() {
   return new Promise((resolve) => window.setTimeout(resolve, reduce ? 0 : 420));
 }
 
-function roleLabel(role: DoorPerson['role']) {
-  return role === 'admin' ? 'মালিক' : 'কর্মী';
-}
-
-async function remember(shopName: string, person: string, shopId: string, role: 'admin' | 'employee' = 'admin', people?: DoorPerson[]) {
-  await db.settings.update('main', { shop_name: shopName, shop_id: shopId, ...(role === 'admin' ? { owner_name: person } : {}), ...(people ? { door_people: people } : {}), updated_at: Date.now() });
+async function remember(shopName: string, person: string, shopId: string, role: 'admin' | 'employee' = 'admin') {
+  await db.settings.update('main', { shop_name: shopName, shop_id: shopId, ...(role === 'admin' ? { owner_name: person } : {}), updated_at: Date.now() });
 }
 
 export function Login({ online }: { online: boolean }) {
@@ -33,8 +40,8 @@ export function Login({ online }: { online: boolean }) {
   const [shops, setShops] = useState<DoorShop[]>([]);
   const [shop, setShop] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [shopId, setShopId] = useState('');
-  const [personId, setPersonId] = useState('');
   const [pickingShop, setPickingShop] = useState(false);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -46,20 +53,18 @@ export function Login({ online }: { online: boolean }) {
   const wrongGen = useRef(0);
   const saved = useLiveQuery(() => db.settings.get('main'));
   const chosen = shops.find((row) => row.id === shopId);
-  const person = ready ? chosen?.people.find((row) => row.id === personId) : undefined;
+  const showShops = ready && shops.length > 1 && (pickingShop || !shopId);
   const shopName = chosen?.name || (saved?.shop_name ?? '').trim();
   useEffect(() => {
-    if (shops.length || !saved?.shop_id || !saved.door_people?.length) return;
-    setShops([{ id: saved.shop_id, name: saved.shop_name, people: saved.door_people }]);
+    if (shops.length || !saved?.shop_id) return;
+    setShops([{ id: saved.shop_id, name: saved.shop_name }]);
     setShopId(saved.shop_id);
-    const last = saved.door_people.find((row) => row.name === saved.owner_name);
-    if (last) setPersonId(last.id);
   }, [saved, shops.length]);
   useEffect(() => {
     if (!online) return;
     api<{ ready: boolean; shops?: DoorShop[] }>('/api/setup').then((row) => {
       setReady(row.ready);
-      if (row.shops?.length) setShops(row.shops);
+      if (row.shops?.length) setShops(row.shops.map((item) => ({ id: item.id, name: item.name })));
     }).catch(() => setReady(true));
   }, [online]);
   useEffect(() => {
@@ -69,39 +74,35 @@ export function Login({ online }: { online: boolean }) {
     const match = byId ?? (named.length === 1 ? named[0] : undefined) ?? (shops.length === 1 ? shops[0] : undefined);
     if (!match) return;
     if (shopId !== match.id) setShopId(match.id);
-    if (!personId) {
-      const last = match.people.find((row) => row.name === (saved?.owner_name ?? '').trim());
-      if (last) setPersonId(last.id);
+    if (saved && saved.shop_id !== match.id) {
+      void db.settings.update('main', { shop_id: match.id, shop_name: match.name, updated_at: Date.now() });
     }
-    if (saved && (saved.shop_id !== match.id || !saved.door_people?.length)) {
-      void db.settings.update('main', { shop_id: match.id, shop_name: match.name, door_people: match.people, updated_at: Date.now() });
-    }
-  }, [ready, shops, saved, shopId, personId, pickingShop]);
+  }, [ready, shops, saved, shopId, pickingShop]);
   async function submit() {
     if (pin.length !== 4 || busy || wrong) return;
-    if (!ready && (!shop.trim() || !name.trim())) return;
-    if (ready && !personId) return;
+    if (!ready && (!shop.trim() || !name.trim() || !phoneOk(phone))) return;
+    if (ready && (!phoneOk(phone) || (shops.length > 1 && !shopId))) return;
     setBusy(true); setError('');
     try {
       if (!ready) {
         const user_id = newId(); const newShop = newId(); const device_id = newId();
-        const shopName = shop.trim(); const personName = name.trim();
+        const shopName = shop.trim(); const personName = name.trim(); const ownPhone = phoneDigits(phone);
         if (!online) {
           await remember(shopName, personName, newShop);
           setOpening(true);
           await holdForOpen();
-          await db.session.put({ id: 'main', token: '', role: 'admin', user_id, shop_id: newShop, name: personName, shop_name: shopName, pending: true, pin, device_id });
+          await db.session.put({ id: 'main', token: '', role: 'admin', user_id, shop_id: newShop, name: personName, phone: ownPhone, shop_name: shopName, pending: true, pin, device_id });
           return;
         }
-        const result = await api<{ token: string; role: 'admin'; user_id: string; shop_id: string; name: string; shop_name: string }>('/api/register', { method: 'POST', body: JSON.stringify({ shop_id: newShop, shop_name: shopName, user_id, name: personName, pin }) });
+        const result = await api<{ token: string; role: 'admin'; user_id: string; shop_id: string; name: string; shop_name: string }>('/api/register', { method: 'POST', body: JSON.stringify({ shop_id: newShop, shop_name: shopName, user_id, name: personName, phone: ownPhone, pin }) });
         await remember(result.shop_name, result.name, result.shop_id);
         setOpening(true);
         await holdForOpen();
         await db.session.put({ id: 'main', token: result.token, role: 'admin', user_id: result.user_id, shop_id: result.shop_id, name: result.name, shop_name: result.shop_name, pending: false, device_id });
       } else {
         if (!online) { setError('ঢুকতে ইন্টারনেট লাগবে'); return; }
-        const result = await api<{ token: string; role: 'admin' | 'employee'; user_id: string; shop_id: string; name: string; shop_name: string }>('/api/login', { method: 'POST', body: JSON.stringify({ user_id: personId, pin }) });
-        await remember(result.shop_name, result.name, result.shop_id, result.role, chosen?.people);
+        const result = await api<{ token: string; role: 'admin' | 'employee'; user_id: string; shop_id: string; name: string; shop_name: string }>('/api/login', { method: 'POST', body: JSON.stringify({ phone: phoneDigits(phone), pin, ...(shopId ? { shop_id: shopId } : {}) }) });
+        await remember(result.shop_name, result.name, result.shop_id, result.role);
         setOpening(true);
         await holdForOpen();
         await db.session.put({ id: 'main', token: result.token, role: result.role, user_id: result.user_id, shop_id: result.shop_id, name: result.name, shop_name: result.shop_name, pending: false, device_id: newId() });
@@ -121,12 +122,25 @@ export function Login({ online }: { online: boolean }) {
   }
   useEffect(() => {
     if (pin.length < 4) { sent.current = ''; return; }
-    if (wrong || busy || (!ready && (!shop.trim() || !name.trim())) || (ready && !personId)) return;
-    const key = `${ready}:${personId}:${pin}`;
+    if (wrong || busy || showShops) return;
+    const need = !ready && (!shop.trim() || !name.trim()) ? 'আগে দোকান আর নিজের নাম লিখুন' : !phone.trim() ? 'আগে ফোন নম্বর লিখুন' : !phoneOk(phone) ? 'ফোন নম্বর ১১ সংখ্যা, ০১ দিয়ে' : '';
+    if (need) {
+      const gen = ++wrongGen.current;
+      setError(need);
+      setWrong(true);
+      setShake((n) => n + 1);
+      window.setTimeout(() => {
+        if (wrongGen.current !== gen) return;
+        setPin('');
+        setWrong(false);
+      }, 650);
+      return;
+    }
+    const key = `${ready}:${shopId}:${phoneDigits(phone)}:${pin}`;
     if (sent.current === key) return;
     sent.current = key;
     void submit();
-  }, [pin, ready, shop, name, personId, wrong, busy]);
+  }, [pin, ready, shop, name, phone, shopId, wrong, busy, showShops]);
   function changePin(next: string) {
     if (busy || opening) return;
     wrongGen.current += 1;
@@ -138,36 +152,30 @@ export function Login({ online }: { online: boolean }) {
     const row = shops.find((item) => item.id === id);
     setShopId(id);
     setPickingShop(false);
-    setPersonId('');
+    setName('');
+    setPhone('');
     changePin('');
-    if (row) void db.settings.update('main', { shop_id: row.id, shop_name: row.name, door_people: row.people, updated_at: Date.now() });
+    if (row) void db.settings.update('main', { shop_id: row.id, shop_name: row.name, updated_at: Date.now() });
   }
-  function choosePerson(id: string) {
-    const row = chosen?.people.find((item) => item.id === id);
-    setPersonId(id);
-    changePin('');
-    if (row) void db.settings.update('main', { owner_name: row.name, updated_at: Date.now() });
-  }
-  const showShops = ready && (pickingShop || !chosen);
-  const showPeople = ready && Boolean(chosen) && !pickingShop;
   const dots = wrong ? 'pin-dots wrong' : opening ? 'pin-dots opening' : busy ? 'pin-dots checking' : 'pin-dots';
   return <main className={opening ? 'lock-screen opening' : 'lock-screen'}><div className="lock-inner auth-card">
-    <h1>{!ready ? 'আমার হিসাব' : showShops ? 'কোন দোকান' : (shopName || 'আমার হিসাব')}</h1>
+    <h1>{!ready ? 'আমার হিসাব' : (shopName || 'আমার হিসাব')}</h1>
+    {!showShops && <p className="auth-lead">{!ready ? 'দোকানের নাম, নিজের নাম, ফোন, তারপর পিন' : 'ফোন নম্বর লিখুন, তারপর পিন'}</p>}
     {!ready && <div className="auth-fields">
       <label>দোকানের নাম<input className="text-input" aria-label="দোকানের নাম" placeholder="যেমন আমার দোকান" value={shop} onChange={(event) => setShop(event.target.value)} maxLength={60} /></label>
-      <label>আপনার নাম<input className="text-input" aria-label="নাম" placeholder="যেমন রহিম" value={name} onChange={(event) => setName(event.target.value)} maxLength={60} /></label>
+      <label>নাম<input className="text-input" aria-label="নাম" placeholder="যেমন রহিম" value={name} onChange={(event) => setName(event.target.value)} maxLength={60} autoComplete="name" /></label>
     </div>}
-    {showShops && <div className="auth-shops">{shops.map((row) => <button key={row.id} type="button" className="auth-person" onClick={() => chooseShop(row.id)}><strong>{row.name}</strong><small>{row.people.map((item) => item.name).join(' · ')}</small></button>)}</div>}
-    {showPeople && <div className="auth-people" role="listbox" aria-label="কে ঢুকছেন">{chosen?.people.map((row) => <button key={row.id} type="button" role="option" aria-selected={row.id === personId} className={row.id === personId ? 'auth-person on' : 'auth-person'} onClick={() => choosePerson(row.id)}><strong>{row.name}</strong><small>{roleLabel(row.role)}</small></button>)}</div>}
-    {(person || !ready) && <div className="auth-pin">
-      <p className="auth-pin-label">{person ? `${person.name} এর পিন` : '৪ সংখ্যার পিন'}</p>
+    {showShops && <div className="auth-shops" role="listbox" aria-label="কোন দোকান">{shops.map((row) => <button key={row.id} type="button" className="auth-shop" onClick={() => chooseShop(row.id)}><strong>{row.name}</strong></button>)}</div>}
+    {!showShops && <div className="auth-pin">
+      <label className="auth-name">ফোন<input className="text-input" aria-label="ফোন" placeholder="যেমন ০১৭১১০০০০০০" inputMode="tel" enterKeyHint="done" value={phone} onChange={(event) => setPhone(phoneDigits(event.target.value))} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} maxLength={11} autoComplete="tel" /></label>
+      <p className="auth-pin-label">৪ সংখ্যার পিন</p>
       <div key={shake} className={dots} aria-label={wrong ? 'পিন মিলেনি' : `${pin.length}টি সংখ্যা`}>{Array.from({ length: 4 }, (_, i) => <span key={i} className={i < pin.length ? 'filled' : ''} />)}</div>
       <Keypad value={pin} onChange={changePin} pin />
       {error && <p className="form-error" role="alert">{error}</p>}
       <p className="auth-pin-status" aria-live="polite">{busy && !opening ? (ready ? 'ঢুকছে…' : 'খুলছে…') : opening ? 'খুলছে…' : '৪ সংখ্যা দিলেই ঢুকবে'}</p>
-      {!ready && <Button variant="ledger" size="primary" disabled={pin.length !== 4 || !shop.trim() || !name.trim() || busy || wrong} onClick={submit}>দোকান খুলুন</Button>}
+      {!ready && <Button variant="ledger" size="primary" disabled={pin.length !== 4 || !shop.trim() || !name.trim() || !phoneOk(phone) || busy || wrong} onClick={submit}>দোকান খুলুন</Button>}
+      {ready && <Button variant="ledger" size="primary" disabled={pin.length !== 4 || !phoneOk(phone) || busy || wrong} onClick={submit}>ঢুকুন</Button>}
     </div>}
-    {showPeople && !person && <p className="auth-pin-label">নিজের নাম চাপুন, তারপর পিন দিন</p>}
-    {showPeople && shops.length > 1 && <button type="button" className="auth-other" onClick={() => { setPickingShop(true); setPersonId(''); changePin(''); }}>অন্য দোকান</button>}
+    {ready && shops.length > 1 && !showShops && <button type="button" className="auth-other" onClick={() => { setPickingShop(true); setPhone(''); changePin(''); }}>অন্য দোকান</button>}
   </div></main>;
 }

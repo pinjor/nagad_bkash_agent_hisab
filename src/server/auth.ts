@@ -1,7 +1,7 @@
 import { pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import { db } from "./db";
 
-export type SessionUser = { id: string; shop_id: string; name: string; role: "admin" | "employee"; shop_name: string };
+export type SessionUser = { id: string; shop_id: string; name: string; phone: string; role: "admin" | "employee"; shop_name: string };
 
 export function hashPin(pin: string, salt = randomBytes(16).toString("hex")) {
   const hash = pbkdf2Sync(pin, salt, 100_000, 32, "sha256").toString("hex");
@@ -48,7 +48,7 @@ export async function userFromRequest(request: Request): Promise<SessionUser | n
   if (!token) return null;
   const sql = await db();
   const rows = await sql<SessionUser[]>`
-    select u.id, u.shop_id, u.name, u.role, s.name as shop_name
+    select u.id, u.shop_id, u.name, u.phone, u.role, s.name as shop_name
     from sessions sess
     join users u on u.id = sess.user_id
     join shops s on s.id = sess.shop_id

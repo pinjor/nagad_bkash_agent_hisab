@@ -57,7 +57,7 @@ export async function syncPending() {
   if (!session) return { pending: await countPending(), rejected: [] as { id: string; reason: string }[] };
   if (session.pending) {
     if (!session.pin) throw new ApiError(400, 'bad_pin');
-    const result = await api<SessionRow & { token: string }>('/api/register', { method: 'POST', body: JSON.stringify({ shop_id: session.shop_id, shop_name: session.shop_name, user_id: session.user_id, name: session.name, pin: session.pin }) });
+    const result = await api<SessionRow & { token: string }>('/api/register', { method: 'POST', body: JSON.stringify({ shop_id: session.shop_id, shop_name: session.shop_name, user_id: session.user_id, name: session.name, phone: session.phone ?? '', pin: session.pin }) });
     await db.session.put({ ...session, token: result.token, role: 'admin', pending: false, pin: undefined });
   }
   const payload = await buildOutbox();

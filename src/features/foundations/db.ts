@@ -10,7 +10,7 @@ export interface Pocket { id: string; code: string; name_bn: string; type: strin
 export interface Transaction extends MoneyTransaction { txn_type: string; amount_paisa: number; date: string; created_at: number; updated_at: number; device_id: string; synced: boolean; version: number; deleted: boolean; void_reason?: string; phone?: string; party?: string; writer?: string }
 export interface Leg extends MoneyLeg { id: string }
 export interface LocalRow { id: string; created_at?: number; updated_at?: number; deleted?: boolean; [key: string]: unknown }
-export interface SessionRow { id: 'main'; token: string; role: 'admin' | 'employee'; user_id: string; shop_id: string; name: string; shop_name: string; pending: boolean; pin?: string; device_id: string }
+export interface SessionRow { id: 'main'; token: string; role: 'admin' | 'employee'; user_id: string; shop_id: string; name: string; phone?: string; shop_name: string; pending: boolean; pin?: string; device_id: string }
 export interface LoanRow { id: string; person_id: string; direction: 'lend' | 'borrow'; principal_paisa: number; pocket_id: string; opened_at: number; due_at?: number; status: string; synced: boolean; writer?: string }
 export interface LoanEventRow { id: string; loan_id: string; type: 'open' | 'repayment'; amount_paisa: number; at: number; note?: string; synced: boolean; writer?: string }
 export function newId() {

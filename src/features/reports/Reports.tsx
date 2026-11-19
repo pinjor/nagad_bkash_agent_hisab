@@ -52,13 +52,17 @@ const dharTypes = new Set(['LEND', 'BORROW', 'REPAY_IN', 'REPAY_OUT']);
 function chipClass(type: string) {
   if (type === 'LEND') return 'lend';
   if (type === 'BORROW') return 'borrow';
-  if (type === 'REPAY_IN') return 'repay-in';
+  if (type === 'REPAY_IN' || type === 'CASH_IN') return 'repay-in';
+  if (type === 'FLEXI') return 'flexi';
   return 'repay-out';
 }
-function DharCards({ items, digits }: { items: Line[]; digits: Parameters<typeof taka>[1] }) {
-  const cards = items.filter((line) => dharTypes.has(line.txn_type));
-  if (!cards.length) return null;
-  return <div className="dhar-cards">{cards.map((line) => <article className="dhar-card" key={line.id}><header><strong>{(line.party ?? '').trim() || 'নাম নেই'}</strong><span className={`loan-way ${chipClass(line.txn_type)}`}>{kindLabel[line.txn_type]}</span></header><p className="loan-left"><strong>{taka(line.amount_paisa, digits)}</strong></p><p className="dhar-meta"><PocketMark id={line.pocket_id} />{pocketName[line.pocket_id] ?? 'পকেট'} · {stamp(line.created_at)}</p><p className="dhar-writer">লিখেছে {wrote(line.actor)}</p></article>)}</div>;
+function lineTitle(line: Line) {
+  if (dharTypes.has(line.txn_type)) return (line.party ?? '').trim() || 'নাম নেই';
+  return (line.phone ?? '').trim() || 'ফোন নেই';
+}
+function HisabCards({ items, digits }: { items: Line[]; digits: Parameters<typeof taka>[1] }) {
+  if (!items.length) return null;
+  return <div className="hisab-cards">{items.map((line) => <article className="hisab-card" key={line.id}><header><strong>{lineTitle(line)}</strong><span className={`loan-way ${chipClass(line.txn_type)}`}>{kindLabel[line.txn_type] ?? line.txn_type}</span></header><p className="loan-left"><strong>{taka(line.amount_paisa, digits)}</strong></p><p className="hisab-meta"><PocketMark id={line.pocket_id} />{pocketName[line.pocket_id] ?? 'পকেট'} · {stamp(line.created_at)}{line.pending ? ' · ফোনে আছে' : ''}</p><p className="hisab-writer">লিখেছে {wrote(line.actor)}</p></article>)}</div>;
 }
 
 export function dharPaisa(items: { txn_type: string; amount_paisa: number }[]) {
@@ -149,8 +153,7 @@ export function Reports() {
       <header><h2>{dayTitle(chosen.date)}</h2><span>{number(chosenLines.length, digits)}টি হিসাব</span></header>
       <p className="field-hint">{rangeLabel} · {kindText} · {pocketText}</p>
       {!historyOnly && <div className="day-rows">{nets(chosenLines).map(([tone, label, amount]) => <div key={label}><span><i className={`tone ${tone}`} />{label}</span><b>{amount}</b></div>)}</div>}
-      <DharCards items={chosenLines} digits={digits} />
-      <ul className="day-lines">{chosenLines.filter((line) => !dharTypes.has(line.txn_type)).map((line) => <li key={line.id}><div><strong>{kindLabel[line.txn_type] ?? line.txn_type}</strong><span><PocketMark id={line.pocket_id} />{pocketName[line.pocket_id] ?? 'পকেট'}{line.phone ? ` · ${line.phone}` : ''} · লিখেছে {wrote(line.actor)}{line.pending ? ' · ফোনে আছে' : ''} · {stamp(line.created_at)}</span></div><b className={line.txn_type === 'CASH_OUT' ? 'out' : 'in'}>{taka(line.amount_paisa, digits)}</b></li>)}</ul>
+      <HisabCards items={chosenLines} digits={digits} />
     </section> : <>
     {!historyOnly && <section className="settings-group">
       <h2>এই সময়ে</h2>
@@ -158,7 +161,7 @@ export function Reports() {
       <div className="settings-list report-totals">
         {nets(lines).map(([tone, label, amount]) => <article key={label}><i className={`tone ${tone}`} /><div><h3>{label}</h3></div><strong>{amount}</strong></article>)}
       </div>
-      <DharCards items={lines} digits={digits} />
+      <HisabCards items={lines} digits={digits} />
     </section>}
     <section className="settings-group">
       <h2>দিন ধরে</h2>

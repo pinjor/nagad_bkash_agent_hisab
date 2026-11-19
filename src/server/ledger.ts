@@ -24,8 +24,19 @@ function pinOf(value: unknown) {
   return pin;
 }
 
-export async function registerShop(input: { shop_id: string; shop_name: string; user_id: string; name: string; pin: string }) {
+function digitsPhone(value: unknown) {
+  return String(value ?? "").replace(/[০-৯]/g, (digit) => String("০১২৩৪৫৬৭৮৯".indexOf(digit))).replace(/\D/g, "");
+}
+
+function phoneOf(value: unknown) {
+  const phone = digitsPhone(value);
+  if (!/^01\d{9}$/.test(phone)) throw new Error("bad_phone");
+  return phone;
+}
+
+export async function registerShop(input: { shop_id: string; shop_name: string; user_id: string; name: string; phone?: string; pin: string }) {
   const pin = pinOf(input.pin);
+  const phone = phoneOf(input.phone);
   const shopId = uuid(input.shop_id);
   const userId = uuid(input.user_id);
   const shopName = input.shop_name.trim().slice(0, 60);
@@ -39,7 +50,7 @@ export async function registerShop(input: { shop_id: string; shop_name: string; 
     await tx`insert into shops (id, name) values (${shopId}, ${shopName}) on conflict (id) do nothing`;
     const admins = await tx`select id from users where shop_id = ${shopId} and role = 'admin'`;
     if (admins.length && admins[0].id !== userId) throw new Error("shop_exists");
-    await tx`insert into users (id, shop_id, name, role, pin_hash, pin_salt) values (${userId}, ${shopId}, ${name}, 'admin', ${hash}, ${salt}) on conflict (id) do nothing`;
+    await tx`insert into users (id, shop_id, name, phone, role, pin_hash, pin_salt) values (${userId}, ${shopId}, ${name}, ${phone}, 'admin', ${hash}, ${salt}) on conflict (id) do nothing`;
     for (const [id, nameBn, sort] of pocketSeed) {
       await tx`insert into pockets (shop_id, id, name_bn, sort) values (${shopId}, ${id}, ${nameBn}, ${sort}) on conflict do nothing`;
     }
@@ -51,46 +62,82 @@ export async function registerShop(input: { shop_id: string; shop_name: string; 
 export async function shopReady() {
   const sql = await db();
   const shops = await sql<{ id: string; name: string }[]>`select id, name from shops order by name`;
-  const people = await sql<{ id: string; shop_id: string; name: string; role: "admin" | "employee" }[]>`
-    select id, shop_id, name, role from users where active order by case when role = 'admin' then 0 else 1 end, name
-  `;
-  return {
-    ready: shops.length > 0,
-    shops: shops.map((shop) => ({
-      id: shop.id,
-      name: shop.name,
-      people: people.filter((person) => person.shop_id === shop.id).map(({ id, name, role }) => ({ id, name, role })),
-    })),
-  };
+  return { ready: shops.length > 0, shops };
 }
 
-export async function login(input: { user_id?: string; pin: string }) {
+export async function login(input: { user_id?: string; name?: string; phone?: string; pin: string; shop_id?: string }) {
   const pin = pinOf(input.pin);
-  let userId = "";
-  try { userId = uuid(input.user_id); } catch { throw new Error("bad_login"); }
   const sql = await db();
-  const rows = await sql<{ id: string; shop_id: string; name: string; role: "admin" | "employee"; pin_hash: string; pin_salt: string; shop_name: string }[]>`
+  const picked = await findLoginUser(sql, input);
+  if (!picked || !checkPin(pin, picked.pin_hash, picked.pin_salt)) throw new Error("bad_login");
+  const token = await createSession(picked.id, picked.shop_id);
+  return { token, role: picked.role, user_id: picked.id, shop_id: picked.shop_id, name: picked.name, shop_name: picked.shop_name };
+}
+
+type LoginRow = { id: string; shop_id: string; name: string; role: "admin" | "employee"; pin_hash: string; pin_salt: string; shop_name: string };
+
+async function findLoginUser(sql: Awaited<ReturnType<typeof db>>, input: { user_id?: string; phone?: string; shop_id?: string }) {
+  if (input.user_id) {
+    let userId = "";
+    try { userId = uuid(input.user_id); } catch { throw new Error("bad_login"); }
+    const rows = await sql<LoginRow[]>`
+      select u.id, u.shop_id, u.name, u.role, u.pin_hash, u.pin_salt, s.name as shop_name
+      from users u join shops s on s.id = u.shop_id
+      where u.active and u.id = ${userId}
+    `;
+    return rows[0];
+  }
+  const phone = digitsPhone(input.phone);
+  if (!/^01\d{9}$/.test(phone)) throw new Error("bad_login");
+  let shopId = "";
+  if (input.shop_id) {
+    try { shopId = uuid(input.shop_id); } catch { throw new Error("bad_login"); }
+  }
+  const rows = await sql<LoginRow[]>`
     select u.id, u.shop_id, u.name, u.role, u.pin_hash, u.pin_salt, s.name as shop_name
     from users u join shops s on s.id = u.shop_id
-    where u.active and u.id = ${userId}
+    where u.active and u.phone = ${phone}
+      ${shopId ? sql`and u.shop_id = ${shopId}` : sql``}
   `;
-  const user = rows[0];
-  if (!user || !checkPin(pin, user.pin_hash, user.pin_salt)) throw new Error("bad_login");
-  const token = await createSession(user.id, user.shop_id);
-  return { token, role: user.role, user_id: user.id, shop_id: user.shop_id, name: user.name, shop_name: user.shop_name };
+  return rows.length === 1 ? rows[0] : undefined;
 }
 
-export async function addEmployee(actor: SessionUser, input: { name: string; pin: string }) {
+export async function addEmployee(actor: SessionUser, input: { name: string; phone?: string; pin: string }) {
   if (actor.role !== "admin") throw new Error("forbidden");
   const pin = pinOf(input.pin);
+  const phone = phoneOf(input.phone);
   const name = input.name.trim().slice(0, 60);
   if (!name) throw new Error("bad_name");
   const sql = await db();
   const id = crypto.randomUUID();
   const { hash, salt } = hashPin(pin);
-  const rows = await sql`insert into users (id, shop_id, name, role, pin_hash, pin_salt) values (${id}, ${actor.shop_id}, ${name}, 'employee', ${hash}, ${salt}) on conflict (shop_id, name) do nothing returning id`;
+  const taken = await sql`select id from users where shop_id = ${actor.shop_id} and phone = ${phone} and active`;
+  if (taken.length) throw new Error("phone_taken");
+  const rows = await sql`insert into users (id, shop_id, name, phone, role, pin_hash, pin_salt) values (${id}, ${actor.shop_id}, ${name}, ${phone}, 'employee', ${hash}, ${salt}) on conflict (shop_id, name) do nothing returning id`;
   if (!rows.length) throw new Error("name_taken");
-  return { id, name, role: "employee" as const };
+  return { id, name, phone, role: "employee" as const };
+}
+
+export async function setOwnPhone(actor: SessionUser, phone: string) {
+  if (actor.role !== "admin") throw new Error("forbidden");
+  const next = phoneOf(phone);
+  const sql = await db();
+  const taken = await sql`select id from users where shop_id = ${actor.shop_id} and phone = ${next} and id <> ${actor.id} and active`;
+  if (taken.length) throw new Error("phone_taken");
+  await sql`update users set phone = ${next} where id = ${actor.id} and role = 'admin' and active`;
+  return { phone: next };
+}
+
+export async function setEmployeePhone(actor: SessionUser, id: string, phone: string) {
+  if (actor.role !== "admin") throw new Error("forbidden");
+  const next = phoneOf(phone);
+  const employeeId = uuid(id);
+  const sql = await db();
+  const taken = await sql`select id from users where shop_id = ${actor.shop_id} and phone = ${next} and id <> ${employeeId} and active`;
+  if (taken.length) throw new Error("phone_taken");
+  const rows = await sql`update users set phone = ${next} where id = ${employeeId} and shop_id = ${actor.shop_id} and role = 'employee' and active returning id`;
+  if (!rows.length) throw new Error("bad_employee");
+  return { phone: next };
 }
 
 export async function changeOwnPin(actor: SessionUser, input: { current?: string; next?: string }) {
@@ -128,8 +175,8 @@ export async function renameShop(actor: SessionUser, name: string) {
 export async function listEmployees(actor: SessionUser) {
   if (actor.role !== "admin") throw new Error("forbidden");
   const sql = await db();
-  const staff = await sql<{ id: string; name: string; created_at: Date }[]>`
-    select id, name, created_at from users
+  const staff = await sql<{ id: string; name: string; phone: string; created_at: Date }[]>`
+    select id, name, phone, created_at from users
     where shop_id = ${actor.shop_id} and role = 'employee' and active
     order by created_at
   `;
@@ -181,6 +228,7 @@ export async function listEmployees(actor: SessionUser) {
     return {
       id: person.id,
       name: person.name,
+      phone: person.phone ?? "",
       created_at: person.created_at,
       txn_count: mine.reduce((sum, row) => sum + Number(row.count), 0),
       cash_in_paisa: amount("CASH_IN"),

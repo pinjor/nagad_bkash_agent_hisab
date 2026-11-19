@@ -8,6 +8,7 @@ create table if not exists users (
   id uuid primary key,
   shop_id uuid not null references shops(id),
   name text not null,
+  phone text not null default '',
   role text not null check (role in ('admin', 'employee')),
   pin_hash text not null,
   pin_salt text not null,
@@ -87,6 +88,8 @@ create table if not exists loan_events (
   note text not null default ''
 );
 
+alter table users add column if not exists phone text not null default '';
+create unique index if not exists users_shop_phone on users (shop_id, phone) where phone <> '';
 alter table transactions add column if not exists phone text not null default '';
 alter table transactions add column if not exists party text not null default '';
 insert into pockets (shop_id, id, name_bn, sort)
