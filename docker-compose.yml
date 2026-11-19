@@ -76,7 +76,7 @@ services:
       OPENING_SHOP_NAME: "${OPENING_SHOP_NAME:-আমার দোকান}"
 
     ports:
-      - "127.0.0.1:${APP_HOST_PORT:-7011}:${APP_INTERNAL_PORT:-3000}"
+      - "${APP_HOST_PORT:-7011}:${APP_INTERNAL_PORT:-3000}"
 
     depends_on:
       postgres:
