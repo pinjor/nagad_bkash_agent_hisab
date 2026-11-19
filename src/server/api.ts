@@ -1,5 +1,5 @@
 import { clearSessionCookie, sessionCookie, userFromRequest } from "./auth";
-import { addEmployee, applySync, balances, changeOwnPin, checkOwnPin, dayHistory, listEmployees, loans, login, ownProfile, people, recentEntries, registerShop, renameShop, repayLoan, report, setEmployeePhone, setEmployeePin, setOwnPhone, shopReady, today, voidTransaction } from "./ledger";
+import { addEmployee, applySync, balances, changeOwnPin, checkOwnPin, dayHistory, listEmployees, loans, login, ownProfile, people, recentEntries, registerShop, renameShop, repayLoan, report, setEmployeePhone, setEmployeePin, setOwnName, setOwnPhone, shopReady, today, voidTransaction } from "./ledger";
 
 function json(data: unknown, status = 200, headers?: HeadersInit) {
   const head = new Headers(headers);
@@ -47,6 +47,7 @@ export async function handleApi(request: Request) {
     if (request.method === "POST" && path === "/api/sync") return json(await applySync(user, await readJson(request)));
     if (request.method === "POST" && path === "/api/pin") return json(await changeOwnPin(user, await readJson(request)));
     if (request.method === "POST" && path === "/api/me/phone") return json(await setOwnPhone(user, String((await readJson(request)).phone ?? "")));
+    if (request.method === "POST" && path === "/api/me/name") return json(await setOwnName(user, String((await readJson(request)).name ?? "")));
     if (request.method === "POST" && path === "/api/employees") return json(await addEmployee(user, await readJson(request)));
     const staffPin = path.match(/^\/api\/employees\/([^/]+)\/pin$/);
     if (request.method === "POST" && staffPin) return json(await setEmployeePin(user, staffPin[1], String((await readJson(request)).pin ?? "")));

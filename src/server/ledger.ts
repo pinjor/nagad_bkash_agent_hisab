@@ -117,6 +117,17 @@ export async function addEmployee(actor: SessionUser, input: { name: string; pho
   return { id, name, phone, role: "employee" as const };
 }
 
+export async function setOwnName(actor: SessionUser, name: string) {
+  if (actor.role !== "admin") throw new Error("forbidden");
+  const next = name.trim().slice(0, 60);
+  if (!next) throw new Error("bad_name");
+  const sql = await db();
+  const taken = await sql`select id from users where shop_id = ${actor.shop_id} and name = ${next} and id <> ${actor.id} and active`;
+  if (taken.length) throw new Error("name_taken");
+  await sql`update users set name = ${next} where id = ${actor.id} and role = 'admin' and active`;
+  return { name: next };
+}
+
 export async function setOwnPhone(actor: SessionUser, phone: string) {
   if (actor.role !== "admin") throw new Error("forbidden");
   const next = phoneOf(phone);
@@ -269,10 +280,25 @@ export async function applySync(actor: SessionUser, body: SyncBody) {
       await tx`insert into people (id, shop_id, name, phone, created_at, created_by) values (${id}, ${actor.shop_id}, ${person.name.trim().slice(0, 80)}, ${String(person.phone ?? "").slice(0, 20)}, ${new Date(person.created_at)}, ${actor.id}) on conflict (id) do nothing`;
       accepted.people.push(id);
     }
+    const blockedLend: number[] = [];
+    let pool: number | null = null;
+    const cashPool = async () => {
+      if (pool != null) return pool;
+      const rows = await tx`select coalesce(sum(l.amount_paisa), 0)::bigint as amount from txn_legs l join transactions t on t.id = l.txn_id where l.shop_id = ${actor.shop_id} and t.status = 'active'`;
+      pool = Number(rows[0]?.amount ?? 0);
+      return pool;
+    };
     for (const txn of reviewed.accept.transactions) {
       const id = uuid(txn.id);
+      const spends = txn.txn_type === "CASH_OUT" || txn.txn_type === "LEND";
+      if (spends && txn.amount_paisa > await cashPool()) {
+        rejected.push({ id, reason: "over_balance" });
+        if (txn.txn_type === "LEND") blockedLend.push(txn.amount_paisa);
+        continue;
+      }
       await tx`insert into transactions (id, shop_id, txn_type, amount_paisa, date, status, device_id, created_by, created_at, phone, party) values (${id}, ${actor.shop_id}, ${txn.txn_type}, ${txn.amount_paisa}, ${txn.date}, 'active', ${reviewed.accept.device_id}, ${actor.id}, ${new Date(txn.created_at)}, ${txn.phone ?? ""}, ${txn.party ?? ""}) on conflict (id) do nothing`;
       accepted.transactions.push(id);
+      if (pool != null && (spends || txn.txn_type === "CASH_IN" || txn.txn_type === "BORROW")) pool += spends ? -txn.amount_paisa : txn.amount_paisa;
     }
     for (const leg of reviewed.accept.legs) {
       const id = uuid(leg.id);
@@ -283,6 +309,10 @@ export async function applySync(actor: SessionUser, body: SyncBody) {
     }
     for (const loan of reviewed.accept.loans) {
       const id = uuid(loan.id);
+      if (loan.direction === "lend") {
+        const hit = blockedLend.indexOf(loan.principal_paisa);
+        if (hit >= 0) { blockedLend.splice(hit, 1); rejected.push({ id, reason: "over_balance" }); continue; }
+      }
       const rows = await tx`insert into loans (id, shop_id, person_id, direction, principal_paisa, pocket_id, opened_at, due_at, status, created_by) select ${id}, ${actor.shop_id}, ${loan.person_id}, ${loan.direction}, ${loan.principal_paisa}, ${loan.pocket_id}, ${new Date(loan.opened_at)}, ${loan.due_at ? new Date(loan.due_at) : null}, 'open', ${actor.id} where exists (select 1 from people p where p.id = ${loan.person_id} and p.shop_id = ${actor.shop_id}) on conflict (id) do nothing returning id`;
       const known = rows.length || (await tx`select id from loans where id = ${id} and shop_id = ${actor.shop_id}`).length;
       if (known) accepted.loans.push(id);

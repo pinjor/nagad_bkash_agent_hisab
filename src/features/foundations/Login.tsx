@@ -91,10 +91,12 @@ export function Login({ online }: { online: boolean }) {
       <span className="login-badge" aria-hidden><ShoppingBag /></span>
       <h1>আমার হিসাব</h1>
       <p className="auth-lead">ফোন নম্বর লিখুন, তারপর পিন</p>
-      <label className="login-field">ফোন<span><Smartphone /><input className="text-input" aria-label="ফোন" placeholder="যেমন ০১৭১১০০০০০০" inputMode="tel" enterKeyHint="done" value={phone} onChange={(event) => setPhone(phoneDigits(event.target.value))} maxLength={11} autoComplete="tel" /></span></label>
+      <label className="login-field"><span><Smartphone /><input className="text-input" aria-label="ফোন" placeholder="যেমন ০১৭১১০০০০০০" inputMode="tel" enterKeyHint="done" value={phone} onChange={(event) => setPhone(phoneDigits(event.target.value))} maxLength={11} autoComplete="tel" /></span></label>
       <div className="auth-pin">
-        <p className="auth-pin-label"><LockKeyhole />৪ সংখ্যার পিন</p>
-        <div key={shake} className={dots} aria-label={wrong ? 'পিন মিলেনি' : `${pin.length}টি সংখ্যা`}>{Array.from({ length: 4 }, (_, i) => <span key={i} className={i < pin.length ? 'filled' : ''} />)}</div>
+        <div key={shake} className={`login-pin${wrong ? ' wrong' : ''}`}>
+          <LockKeyhole />
+          {pin.length === 0 ? <span className="login-pin-hint">৪ সংখ্যার পিন</span> : <span className={dots} aria-label={wrong ? 'পিন মিলেনি' : `${pin.length}টি সংখ্যা`}>{Array.from({ length: 4 }, (_, i) => <span key={i} className={i < pin.length ? 'filled' : ''} />)}</span>}
+        </div>
         <Keypad value={pin} onChange={changePin} pin />
         {error && <p className="form-error" role="alert">{error}</p>}
         <Button className="login-go" variant="ledger" size="primary" disabled={pin.length !== 4 || !phoneOk(phone) || busy || wrong} onClick={submit}>ঢুকুন</Button>

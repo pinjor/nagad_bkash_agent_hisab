@@ -2,8 +2,10 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { Link, useLocation } from '@tanstack/react-router';
 import { BookOpen, House, Plus, Users, ChartNoAxesCombined, Settings, ShieldCheck, Download, Check, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { db } from './db';
 import { useHisab } from './Provider';
 import { number } from './money';
+import { api } from './sync';
 const items = [{ to: '/', label: 'হোম', icon: House }, { to: '/entry', label: 'নতুন হিসাব', icon: Plus }, { to: '/people', label: 'খাতা', icon: Users }, { to: '/reports', label: 'রিপোর্ট', icon: ChartNoAxesCombined }, { to: '/settings', label: 'সেটিংস', icon: Settings }] as const;
 const pageTitle: Record<string, string> = { '/': 'আজকের হিসাব', '/entry': 'নতুন হিসাব', '/people': 'খাতা', '/reports': 'রিপোর্ট', '/settings': 'সেটিংস', '/employees': 'কর্মচারী' };
 const pageNote: Record<string, string> = { '/': 'আজ কত টাকা আছে', '/entry': 'টাকা ঢোকান বা বের করুন', '/people': 'কার কাছে কত ধার', '/reports': 'দিনের হিসাব দেখুন', '/settings': 'দোকান ও পিন', '/employees': 'যাঁরা হিসাব লেখেন' };
@@ -13,7 +15,8 @@ export function usePageTitle(title: string) {
   useEffect(() => { setTitle(title); return () => setTitle(''); }, [setTitle, title]);
 }
 export function Shell({ children }: { children: ReactNode }) {
-  const { settings, online, role, pending, serverOk } = useHisab(); const path = useLocation().pathname;
+  const { settings, online, role, pending, serverOk, userName } = useHisab(); const path = useLocation().pathname;
+  const [menu, setMenu] = useState(false);
   const [detail, setDetail] = useState('');
   const [install, setInstall] = useState<(Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }) | null>(null);
   const [update, setUpdate] = useState(false);
@@ -32,7 +35,10 @@ export function Shell({ children }: { children: ReactNode }) {
       <div className="sidebar-foot"><ShieldCheck /><span>হিসাব এই ফোনে থাকে<small>আপনার টাকা, আপনার কাছে</small></span></div>
     </aside>
     <div className="main-shell"><header className="topbar"><h1 className="shop-title"><span>{title}</span><small className={link ? (online ? 'link-wait' : 'link-offline') : ''}>{note}{link ? ` · ${link}` : ''}</small></h1>
-      <div className="header-actions"><span className="local-chip"><ShieldCheck />{role === 'employee' ? 'কর্মচারী' : 'মালিক'}</span></div>
+      <div className="header-actions" onPointerDown={(event) => event.stopPropagation()}>
+        <button type="button" className="name-chip" aria-expanded={menu} onClick={() => setMenu((open) => !open)}><span className="balance-face" aria-hidden>{(userName || 'ম').slice(0, 1)}</span><span>{userName || 'নাম'}</span></button>
+        {menu && <div className="signout-pop" role="menu"><button type="button" onClick={async () => { try { await api('/api/logout', { method: 'POST' }); } catch { /* অফলাইনেও বের হবে */ } await db.session.delete('main'); }}>লগ আউট</button></div>}
+      </div>
     </header>
     {install && <div className="app-notice"><Download /><span>ফোনে আমার হিসাব</span><Button variant="outline" size="touch" onClick={async () => { await install.prompt(); await install.userChoice; setInstall(null); }}><Download />ইনস্টল করুন</Button></div>}
     {update && <div className="app-notice"><RefreshCw /><span>নতুন আপডেট আছে</span><Button variant="outline" size="touch" onClick={() => window.location.reload()}><Check />আপডেট করুন</Button></div>}

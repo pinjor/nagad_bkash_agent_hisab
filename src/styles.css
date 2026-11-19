@@ -279,7 +279,7 @@ button,a,input { -webkit-tap-highlight-color:transparent; } h1,h2,h3,p { margin:
 .link-wait .connection-dot { background:var(--nagad); }
 .link-offline .connection-dot { background:var(--muted-foreground); }
 .field-hint, .khata-empty { margin:0; color:var(--muted-foreground); font-size:14px; }
-.khata-person label, .khata-loan label, .repay-row label, .staff-fields label { display:flex; flex-direction:column; gap:4px; font-size:13px; font-weight:600; color:var(--muted-foreground); text-align:left; }
+.khata-person label, .khata-loan label:not(.send-figure), .repay-row label, .staff-fields label { display:flex; flex-direction:column; gap:4px; font-size:13px; font-weight:600; color:var(--muted-foreground); text-align:left; }
 .settings-groups { display:flex; flex-direction:column; gap:20px; }
 .settings-group { display:flex; flex-direction:column; gap:8px; }
 .settings-group > h2 { margin:0; font-size:18px; font-weight:600; }
@@ -953,7 +953,10 @@ a.pocket-circle { text-decoration: none; color: inherit; }
 .pocket-pick.pharma { color: var(--pharma); }
 .profile-card { display: flex; flex-direction: column; gap: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
 .profile-head { display: flex; align-items: center; gap: 12px; }
-.profile-head h2 { margin: 0; font-size: 22px; }
+.profile-name { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 52px; }
+.profile-head h2 { margin: 0; font-size: 22px; line-height: 1; }
+.profile-name .text-input { min-height: 40px; height: 40px; width: min(180px, 46vw); font-size: 16px; padding: 0 10px; }
+.profile-name button { align-self: center; }
 .profile-head p { margin: 0; color: var(--muted-foreground); }
 .profile-mark { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: color-mix(in oklch, var(--primary) 14%, white); color: var(--primary); }
 .profile-row { display: flex; align-items: center; gap: 10px; min-height: 48px; }
@@ -1044,7 +1047,7 @@ a.pocket-circle { text-decoration: none; color: inherit; }
 .send-figure .send-amount-label { font-size: 16px; font-weight: 700; color: var(--foreground); }
 .today-band > div, .today-band > a { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; text-decoration: none; color: inherit; min-height: 72px; border: 1px solid var(--border); border-radius: 12px; padding: 10px; background: var(--card); }
 .today-band strong { font-size: 20px; }
-.today-band > div:last-child, .today-band > a:last-child { grid-column: 1 / -1; }
+.today-band > div:last-child, .today-band > a:last-child { grid-column: auto; }
 .send-kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px 16px 0; }
 .send-kinds button { min-height: 44px; border-radius: 999px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
 .send-kinds .kind-in { background: color-mix(in oklch, var(--cash) 16%, white); color: var(--cash); border: 1px solid color-mix(in oklch, var(--cash) 45%, white); }
@@ -1134,3 +1137,99 @@ a.pocket-circle { text-decoration: none; color: inherit; }
 .entry-pockets .pocket-circle.flexi.on .pocket-bubble { background: color-mix(in oklch, var(--flexi) 22%, var(--background)); color: var(--flexi); box-shadow: 0 0 0 3px var(--flexi); }
 .pocket-circle.pharma.on .pocket-bubble,
 .entry-pockets .pocket-circle.pharma.on .pocket-bubble { background: color-mix(in oklch, var(--pharma) 24%, var(--background)); color: var(--pharma); box-shadow: 0 0 0 3px var(--pharma); }
+.header-actions { position: relative; }
+.topbar .header-actions .name-chip { display: inline-flex; align-items: center; gap: 6px; width: auto; min-width: 0; max-width: 46vw; height: 36px; min-height: 36px; padding: 3px 12px 3px 3px; border: 0; border-radius: 999px; background: var(--accent); color: var(--primary); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.topbar .header-actions .name-chip .balance-face { width: 30px; height: 30px; font-size: 14px; }
+.topbar .header-actions .name-chip span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.name-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.topbar .header-actions .name-edit { width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; border-radius: 999px; background: var(--background); color: var(--primary); display: grid; place-items: center; cursor: pointer; }
+.topbar .header-actions .name-edit svg { width: 16px; height: 16px; }
+.topbar .header-actions .name-draft { width: 9rem; max-width: 42vw; height: 36px; min-height: 36px; padding: 0 10px; border: 1px solid var(--primary); border-radius: 999px; background: var(--card); color: var(--foreground); font: inherit; font-size: 14px; font-weight: 700; }
+.name-error { position: absolute; top: calc(100% + 4px); right: 0; margin: 0; font-size: 12px; font-weight: 700; color: var(--destructive, oklch(.52 .2 25)); white-space: nowrap; }
+.signout-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; padding: 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); box-shadow: 0 8px 24px oklch(0.2 0.02 150 / 0.16); }
+.topbar .header-actions .signout-pop button { width: auto; min-width: 128px; height: 40px; min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--background); color: var(--foreground); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.home-hero-top { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
+.home-hero-top .hero-add { margin-left: auto; flex: none; }
+.balance-peek-sizer { display: block; height: 0; overflow: hidden; visibility: hidden; }
+.khata-tabs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-bottom: 8px; }
+.khata-screen.write { display: block; }
+.khata-screen.write .loan-list, .khata-screen.write .finder { display: none; }
+.khata-screen.write .khata-compose { display: flex; flex-direction: column; gap: 0; min-height: calc(100dvh - 230px); }
+.khata-loan { display: flex; flex-direction: column; gap: 0; border: 0; background: transparent; padding: 0; }
+.khata-loan .send-kinds, .khata-loan .entry-pockets, .khata-loan .send-block { padding-left: 0; padding-right: 0; }
+.khata-loan .send-amount { min-height: 0; padding: 8px 0 0; }
+.khata-loan .send-next { margin: 12px 0 16px; }
+.khata-loan .send-save { margin: 16px 0 8px; border-radius: 16px; }
+.khata-name-row .send-phone { flex: 1; min-width: 0; background: transparent; }
+.khata-loan .khata-due { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 10px 0; border-top: 1px solid var(--border); font-size: 15px; font-weight: 700; color: var(--foreground); }
+.khata-loan .khata-due input { width: auto; min-height: 40px; height: 40px; border: 0; background: transparent; font: inherit; font-weight: 700; color: var(--foreground); padding: 0; }
+:root {
+  --background: #fff;
+  --card: #fff;
+  --paper: #fff;
+  --sidebar: #fff;
+  --secondary: #fff;
+  --muted: #fff;
+  --accent: #f4f4f4;
+}
+html, body, .app-shell, .main-shell, .page-content { background: #fff; }
+.send-figure, .khata-loan .send-figure {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
+  flex: 0 0 auto;
+  min-height: 88px;
+}
+.send-figure > span, .khata-loan .send-figure > span {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1em;
+  line-height: 1;
+  max-width: none;
+}
+.send-figure input, .khata-loan .send-figure input {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 1.2ch;
+  max-width: 8ch;
+  height: 1em;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  line-height: 1;
+  text-align: left;
+  field-sizing: content;
+  background: transparent;
+}
+.khata-screen.write .khata-compose { min-height: 0; gap: 0; }
+.khata-loan { gap: 12px; }
+.khata-loan .send-kinds, .khata-loan .entry-pockets { padding-left: 0; padding-right: 0; }
+.khata-loan .send-block { padding: 0; border: 0; }
+.khata-loan .send-block > p { margin: 0 0 6px; }
+.khata-loan .send-amount { flex: 0; min-height: 0; padding: 0; }
+.khata-loan .send-balance { padding: 4px 0 8px; }
+.khata-name-row { align-items: center; gap: 8px; }
+.khata-name-row .send-phone, .khata-name-row .mini-btn { height: 48px; min-height: 48px; }
+.khata-name-row .send-phone { border: 1px solid var(--border); border-radius: 12px; padding: 0 12px; background: #fff; }
+.khata-name-row .mini-btn { align-self: center; padding: 0 14px; }
+.khata-loan label.khata-due { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; padding: 0; border-top: 1px solid var(--border); font-size: 15px; font-weight: 700; color: var(--foreground); }
+.khata-loan label.khata-due input { width: auto; max-width: 46%; min-height: 40px; height: 40px; margin: 0; padding: 0; border: 0; background: transparent; text-align: right; }
+.login-field > span, .login-pin { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 0 14px; border: 1px solid var(--border); border-radius: 14px; background: #fff; }
+.login-field > span:focus-within, .login-pin:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+.login-field svg, .login-pin > svg { width: 20px; height: 20px; color: var(--muted-foreground); flex: none; }
+.login-field .text-input { flex: 1; min-width: 0; width: auto; height: 48px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.login-field .text-input:focus-visible { outline: none; }
+.login-pin-hint { color: color-mix(in oklch, var(--foreground) 45%, white); font-size: 18px; font-weight: 600; }
+.login-pin .pin-dots { flex: 1; justify-content: flex-start; gap: 10px; padding: 0; margin: 0; }
+.login-pin.wrong { border-color: var(--destructive); }
+.send-sheet { min-height: 0; }
+.send-sheet .send-amount { flex: 0; min-height: 0; padding: 8px 16px 0; }
+.send-sheet .send-figure { flex: 0; min-height: 88px; }
+.send-sheet .send-balance { padding: 4px 16px 8px; }
+.send-sheet .send-next { width: calc(100% - 32px); margin: 12px 16px 16px; }

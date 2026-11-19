@@ -30,6 +30,7 @@ export function Entry() {
     setError('');
     if (parsed == null) { setError('সঠিক টাকা লিখুন'); return; }
     if (!parsed) { setError('টাকার পরিমাণ দিন'); return; }
+    if (kind === 'CASH_OUT' && parsed > balance) { setError('ব্যবহারযোগ্য ব্যালেন্সের বেশি যাবে না'); return; }
     if (dial && !phoneOk(dial)) { setError('ফোন নম্বর ১১ সংখ্যা, ০১ দিয়ে'); return; }
     setStep('summary');
   }
@@ -39,6 +40,7 @@ export function Entry() {
     try {
       const amount = toPaisa(value || '0');
       if (!amount) { setError('টাকার পরিমাণ দিন'); return; }
+      if (kind === 'CASH_OUT' && amount > balance) { setError('ব্যবহারযোগ্য ব্যালেন্সের বেশি যাবে না'); return; }
       if (dial && !phoneOk(dial)) { setError('ফোন নম্বর ১১ সংখ্যা, ০১ দিয়ে'); return; }
       await queueEntry(kind, pocket, amount, { phone: dial });
       setValue('');
