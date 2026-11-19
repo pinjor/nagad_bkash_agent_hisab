@@ -63,7 +63,7 @@ export async function saveOpening(amounts: Record<string, number>, shop_name: st
   await db.transaction('rw', db.settings, db.transactions, db.txn_legs, db.audit_log, async () => {
     await db.transactions.add({ id, txn_type: 'OPENING', amount_paisa: Object.values(amounts).reduce((a, b) => a + b, 0), date: new Date().toLocaleDateString('en-CA'), created_at: now, updated_at: now, device_id, synced: false, version: 1, deleted: false, status: 'active' });
     await db.txn_legs.bulkAdd(Object.entries(amounts).map(([pocket_id, amount_paisa]) => ({ id: newId(), txn_id: id, pocket_id, amount_paisa })));
-    await db.settings.update('main', { configured: true, shop_name: shop_name.trim() || 'আমার দোকান', pin_hash, pin_salt, updated_at: now });
+    await db.settings.update('main', { configured: true, shop_name: shop_name.trim() || 'আমার দোকান', ...(pin_hash ? { pin_hash, pin_salt } : {}), updated_at: now });
     await db.audit_log.add({ id: newId(), entity_id: id, action: 'opening', at: now });
   });
   return id;

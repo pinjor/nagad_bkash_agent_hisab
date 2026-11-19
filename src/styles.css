@@ -179,7 +179,7 @@
   --muted: oklch(.96 .006 155); --muted-foreground: oklch(.51 .018 155);
   --accent: oklch(.94 .023 155); --accent-foreground: var(--primary);
   --border: oklch(.91 .009 155); --input: var(--border); --ring: var(--primary);
-  --cash: oklch(.627 .17 149); --bkash: oklch(.589 .225 2); --nagad: oklch(.756 .162 65); --rocket: oklch(.493 .163 323); --flexi: oklch(.546 .215 263); --pharma: oklch(.55 .14 195);
+  --cash: oklch(.52 .16 145); --bkash: oklch(.55 .22 350); --nagad: oklch(.62 .17 55); --rocket: oklch(.48 .18 330); --flexi: oklch(.46 .2 285); --pharma: oklch(.58 .17 35);
   --pharmacy: oklch(.6 .118 185); --phone: oklch(.511 .23 277);
   --owed: oklch(.58 .137 73); --held: oklch(.53 .138 253);
   --banner: oklch(.37 .084 156); --banner-foreground: oklch(.99 .003 155);
@@ -904,10 +904,233 @@ button.staff-card header strong { font-size: 16px; }
 }
 .settings-list.report-totals article { min-height: 0; padding: 6px 10px; }
 .report-page { gap: 8px; }
-@media (max-width: 800px) {
-  .lock-screen { align-items: center; padding: 16px 18px calc(16px + env(safe-area-inset-bottom)); }
-  .auth-card, .lock-inner { width: 100%; max-width: 640px; }
-  .auth-card { padding: 22px 18px 18px; gap: 12px; }
-  .auth-card h1 { font-size: 30px; }
-  .auth-card .keypad-button, .lock-inner .keypad-button { height: 56px; min-height: 52px; font-size: 26px; }
+@media (max-width: 1100px) {
+  .lock-screen { align-items: center; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); }
+  .auth-card, .lock-inner { width: 100%; max-width: none; }
+  .auth-card { padding: 18px 16px 14px; gap: 10px; }
+  .auth-card h1 { font-size: 36px; }
+  .auth-lead { font-size: 17px; }
+  .auth-name, .auth-fields label, .auth-pin-label { font-size: 16px; }
+  .auth-card .text-input { min-height: 56px; font-size: 20px; }
+  .auth-card .keypad-button, .lock-inner .keypad-button { height: 60px; min-height: 56px; font-size: 30px; }
+  .auth-door button, .auth-card .ledger-button { font-size: 18px; }
+  .login-art { display: none; }
+  .login-shell { width: 100%; max-width: none; }
+  .today-band { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .today-band > div:last-child { grid-column: 1 / -1; }
 }
+.login-shell { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 420px); width: min(920px, 100%); background: var(--card); border-radius: 28px; overflow: hidden; box-shadow: var(--shadow-modal); }
+.login-art { display: flex; align-items: flex-end; justify-content: center; min-height: 100%; padding: 28px; background: linear-gradient(160deg, oklch(.45 .12 155), oklch(.32 .08 160)); }
+.login-art-card { display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(220px, 100%); padding: 28px 16px; border-radius: 24px; background: oklch(.98 .01 155); color: var(--primary); font-weight: 800; }
+.login-art-card svg { width: 72px; height: 72px; }
+.login-field { display: flex; flex-direction: column; gap: 6px; width: 100%; font-weight: 700; }
+.login-field span { display: flex; align-items: center; gap: 8px; }
+.login-field svg { width: 20px; height: 20px; color: var(--primary); flex: none; }
+.login-go { width: 100%; border-radius: 999px; min-height: 52px; }
+.money-gave { color: oklch(.42 .16 145); }
+.money-took { color: oklch(.52 .2 25); }
+.tone.cash { background: var(--cash); }
+.tone.bkash { background: var(--bkash); }
+.tone.nagad { background: var(--nagad); }
+.tone.rocket { background: var(--rocket); }
+.tone.pharma { background: var(--pharma); }
+.home-hero { background: var(--banner); color: var(--banner-foreground); border-radius: 28px 28px 22px 22px; padding: 22px 18px 0; }
+.home-hero-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding-bottom: 18px; }
+.home-hero .total-amount { color: var(--banner-foreground); font-size: 40px; }
+.home-hero .balance-label { color: var(--banner-muted); }
+.home-sheet { background: var(--card); color: var(--foreground); border-radius: 22px 22px 0 0; margin: 0 -6px; padding: 16px 12px 8px; }
+.home-sheet h2 { margin: 0 0 12px; font-size: 18px; }
+.pocket-circles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 8px; }
+a.pocket-circle { text-decoration: none; color: inherit; }
+.pocket-circle.gave { --pocket-color: oklch(.42 .16 145); }
+.pocket-circle.took { --pocket-color: oklch(.52 .2 25); }
+.pocket-circle { display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 96px; padding: 4px; border: 0; background: transparent; color: var(--foreground); cursor: pointer; }
+.pocket-bubble { display: grid; place-items: center; width: 58px; height: 58px; border-radius: 50%; background: color-mix(in oklch, var(--pocket-color) 16%, white); color: var(--pocket-color); }
+.pocket-circle strong { font-size: 13px; color: var(--pocket-color); }
+.pocket-circle .pocket-name { font-size: 13px; font-weight: 700; text-align: center; }
+.pocket-pick.cash { color: var(--cash); }
+.pocket-pick.flexi { color: var(--flexi); }
+.pocket-pick.pharma { color: var(--pharma); }
+.profile-card { display: flex; flex-direction: column; gap: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
+.profile-head { display: flex; align-items: center; gap: 12px; }
+.profile-head h2 { margin: 0; font-size: 22px; }
+.profile-head p { margin: 0; color: var(--muted-foreground); }
+.profile-mark { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: color-mix(in oklch, var(--primary) 14%, white); color: var(--primary); }
+.profile-row { display: flex; align-items: center; gap: 10px; min-height: 48px; }
+.profile-row > div { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.profile-row span { color: var(--muted-foreground); font-size: 13px; font-weight: 700; }
+.day-summary header button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.day-summary .stat-grid button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+@media (min-width: 801px) {
+  .today-band { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .today-band h2 { grid-column: 1 / -1; }
+  .today-band > div:last-child { grid-column: 1 / -1; }
+  .pocket-circles { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+.send-sheet { --send: var(--primary); margin: -35px -42px -28px; min-height: calc(100dvh - 100px); background: var(--background); color: var(--foreground); display: flex; flex-direction: column; position: relative; }
+.send-bar { background: var(--send); color: white; display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; min-height: 64px; padding: 6px 8px; }
+.send-bar h1 { margin: 0; text-align: center; font-size: 22px; font-weight: 600; }
+.send-bar a, .send-bar button { color: white; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; border-radius: 8px; }
+.send-mark { display: grid; place-items: center; color: white; }
+.send-mark svg { width: 28px; height: 28px; }
+.send-picks { display: flex; gap: 8px; padding: 12px 16px 0; overflow: auto; }
+.send-picks button { min-height: 40px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--foreground); padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 14px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.send-picks button.on { background: var(--send); color: white; border-color: transparent; }
+.send-picks svg { width: 16px; height: 16px; }
+.send-block { padding: 16px 16px 12px; border-bottom: 1px solid var(--border); }
+.send-block > p, .send-amount > p { margin: 0 0 12px; color: var(--muted-foreground); font-size: 15px; font-weight: 600; }
+.send-person { display: flex; align-items: center; gap: 14px; }
+.send-avatar { width: 56px; height: 56px; border-radius: 50%; background: color-mix(in oklch, var(--primary) 18%, white); color: var(--primary); display: grid; place-items: center; font-size: 26px; font-weight: 500; flex-shrink: 0; }
+.send-person label { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.send-phone { border: 0; background: transparent; font: inherit; font-size: 20px; font-weight: 700; color: var(--foreground); width: 100%; padding: 0; min-height: 32px; }
+.send-phone:focus { outline: none; }
+.send-person small { color: var(--foreground); font-size: 16px; font-weight: 500; }
+.send-amount { flex: 0; display: flex; flex-direction: column; padding: 14px 16px 0; min-height: 0; }
+.send-figure { flex: 0; display: flex; align-items: center; justify-content: flex-start; gap: 8px; min-height: 52px; }
+.send-amount-label { font-size: 16px; font-weight: 700; color: var(--foreground); flex: none; }
+.send-figure span, .send-figure input { font-size: 28px; font-weight: 700; line-height: 1; color: var(--foreground); background: transparent; border: 0; padding: 0; }
+.send-figure input { width: 7ch; min-width: 3ch; field-sizing: content; text-align: left; font: inherit; font-size: inherit; font-weight: inherit; }
+.send-figure input:focus { outline: none; }
+.send-figure.has-value span, .send-figure.has-value input { color: oklch(0.45 0.02 280); }
+.send-balance { margin: 0; text-align: center; padding: 12px 16px 96px; font-size: 16px; font-weight: 700; }
+.send-error { text-align: center; margin: 0 16px 8px; }
+.send-tick { position: absolute; right: 18px; bottom: 22px; width: 52px; height: 52px; border: 0; border-radius: 50%; background: var(--primary); color: white; display: grid; place-items: center; cursor: pointer; }
+.send-tick svg { width: 28px; height: 28px; }
+.send-summary { display: flex; flex-direction: column; flex: 1; padding-bottom: 16px; }
+.send-total { margin: 0; text-align: center; font-size: 32px; font-weight: 700; padding: 20px 16px; color: var(--primary); }
+.send-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-top: 1px solid var(--border); font-size: 16px; }
+.send-row span { color: var(--muted-foreground); font-weight: 600; }
+.send-row b { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; text-align: right; }
+.send-save { margin: auto 16px 8px; min-height: 52px; border: 0; border-radius: 8px; background: var(--send); color: white; font: inherit; font-size: 18px; font-weight: 700; cursor: pointer; }
+@media (max-width: 1150px) { .send-sheet { margin: -28px -25px -28px; } }
+@media (max-width: 800px) {
+  .app-shell:has(.send-sheet) .topbar { display: none; }
+  .app-shell:has(.send-sheet) .page-content { padding-top: 0; }
+  .send-sheet { margin: 0 -14px 0; min-height: calc(100dvh - 72px); }
+  .send-tick { bottom: 16px; }
+}
+.home-hero { background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 16px; padding: 14px; }
+.home-hero-top { align-items: center; padding-bottom: 12px; }
+.home-hero .balance-label { color: var(--muted-foreground); }
+.home-hero .total-amount { color: var(--primary); font-size: 34px; }
+.home-sheet { background: transparent; color: inherit; border-radius: 0; margin: 0; padding: 12px 0 0; border-top: 1px solid var(--border); }
+.hero-add { min-height: 44px; border-radius: 12px; }
+.today-band { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px; }
+.today-band h2 { grid-column: 1 / -1; margin: 0; padding: 0 2px 2px; border: 0; }
+.today-band > div { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; grid-column: auto; border: 1px solid var(--border); border-radius: 12px; padding: 10px; min-height: 52px; }
+.today-band > div:last-child { grid-column: 1 / -1; }
+.today-band strong { display: block; margin: 0; }
+.settings-list.report-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.profile-card button, .settings-list article > button, .mini-btn { min-height: 36px; height: 36px; min-width: 36px; width: auto; padding: 0 10px; font-size: 14px; }
+.profile-card button svg, .settings-list article > button svg, .mini-btn svg { width: 16px; height: 16px; }
+.khata-loan .mini-btn { align-self: flex-start; min-height: 36px; height: 36px; width: auto; padding: 0 12px; font-size: 14px; }
+.khata-loan .send-picks { padding: 0; }
+.day-summary header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.day-go { width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border); background: var(--background); color: var(--foreground); display: grid; place-items: center; cursor: pointer; flex: none; }
+.day-go svg { width: 18px; height: 18px; }
+.pocket-picks button.cash { background: color-mix(in oklch, var(--cash) 16%, white); color: var(--cash); border-color: color-mix(in oklch, var(--cash) 45%, white); }
+.pocket-picks button.bkash { background: color-mix(in oklch, var(--bkash) 16%, white); color: var(--bkash); border-color: color-mix(in oklch, var(--bkash) 45%, white); }
+.pocket-picks button.nagad { background: color-mix(in oklch, var(--nagad) 18%, white); color: var(--nagad); border-color: color-mix(in oklch, var(--nagad) 45%, white); }
+.pocket-picks button.rocket { background: color-mix(in oklch, var(--rocket) 16%, white); color: var(--rocket); border-color: color-mix(in oklch, var(--rocket) 45%, white); }
+.pocket-picks button.flexi { background: color-mix(in oklch, var(--flexi) 16%, white); color: var(--flexi); border-color: color-mix(in oklch, var(--flexi) 45%, white); }
+.pocket-picks button.pharma { background: color-mix(in oklch, var(--pharma) 18%, white); color: var(--pharma); border-color: color-mix(in oklch, var(--pharma) 45%, white); }
+.pocket-picks button.cash.on { background: var(--cash); color: white; }
+.pocket-picks button.bkash.on { background: var(--bkash); color: white; }
+.pocket-picks button.nagad.on { background: var(--nagad); color: white; }
+.pocket-picks button.rocket.on { background: var(--rocket); color: white; }
+.pocket-picks button.flexi.on { background: var(--flexi); color: white; }
+.pocket-picks button.pharma.on { background: var(--pharma); color: white; }
+.send-figure.has-value span, .send-figure.has-value input { color: var(--foreground); }
+.send-figure .send-amount-label { font-size: 16px; font-weight: 700; color: var(--foreground); }
+.today-band > div, .today-band > a { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; text-decoration: none; color: inherit; min-height: 72px; border: 1px solid var(--border); border-radius: 12px; padding: 10px; background: var(--card); }
+.today-band strong { font-size: 20px; }
+.today-band > div:last-child, .today-band > a:last-child { grid-column: 1 / -1; }
+.send-kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px 16px 0; }
+.send-kinds button { min-height: 44px; border-radius: 999px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.send-kinds .kind-in { background: color-mix(in oklch, var(--cash) 16%, white); color: var(--cash); border: 1px solid color-mix(in oklch, var(--cash) 45%, white); }
+.send-kinds .kind-in.on { background: var(--cash); color: white; }
+.send-kinds .kind-out { background: color-mix(in oklch, oklch(.52 .2 25) 14%, white); color: oklch(.52 .2 25); border: 1px solid color-mix(in oklch, oklch(.52 .2 25) 40%, white); }
+.send-kinds .kind-out.on { background: oklch(.52 .2 25); color: white; }
+.entry-pockets { padding: 12px 16px 0; overflow: visible; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.entry-pockets .pocket-circle { min-height: 84px; }
+.entry-pockets .pocket-circle.on .pocket-bubble { background: var(--pocket-color); color: white; }
+.khata-name-row { display: flex; align-items: flex-end; gap: 8px; }
+.khata-name-row label { flex: 1; min-width: 0; }
+.khata-name-row .mini-btn { flex: none; align-self: flex-end; height: 56px; min-height: 56px; padding: 0 14px; font-size: 16px; }
+.lock-screen { background: radial-gradient(circle at 12% -10%, color-mix(in oklch, var(--primary) 32%, white), transparent 46%), radial-gradient(circle at 100% 110%, color-mix(in oklch, var(--primary) 22%, white), transparent 42%), var(--background); }
+.login-badge { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto; border-radius: 20px; background: var(--ink); color: white; box-shadow: 0 10px 24px color-mix(in oklch, var(--primary) 28%, transparent); }
+.login-badge svg { width: 32px; height: 32px; }
+.login-shell { border: 1px solid color-mix(in oklch, var(--primary) 22%, white); }
+.auth-card .text-input { border-radius: 14px; }
+.login-go { box-shadow: 0 8px 18px color-mix(in oklch, var(--primary) 30%, transparent); }
+.send-block .send-person { flex-direction: column; align-items: stretch; gap: 2px; }
+.home-hero-top { flex-direction: column; align-items: stretch; gap: 12px; }
+.balance-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.balance-face { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; background: color-mix(in oklch, var(--primary) 16%, white); color: var(--primary); font-size: 16px; font-weight: 700; }
+.balance-who strong { flex: 1; min-width: 0; font-size: 16px; overflow-wrap: anywhere; }
+.balance-who .hero-add { flex: none; margin-left: auto; min-height: 36px; height: 36px; padding: 0 10px; font-size: 14px; }
+.balance-peek { position: relative; align-self: flex-start; width: max-content; max-width: 100%; min-height: 36px; border: 0; border-radius: 999px; background: var(--background); color: var(--foreground); box-shadow: inset 0 0 0 1px var(--border); padding: 3px 12px 3px 36px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; }
+.balance-peek-mark { position: absolute; top: 3px; left: 3px; width: 30px; height: 30px; border-radius: 9px; background: var(--primary); color: white; display: grid; place-items: center; font-size: 16px; font-weight: 700; transition: left .45s cubic-bezier(.2, .8, .2, 1); }
+.balance-peek.go { padding-left: 12px; padding-right: 36px; }
+.balance-peek.go .balance-peek-mark { left: calc(100% - 33px); }
+.balance-peek-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .balance-peek-mark { transition: none; } }
+.send-amount { flex: 1; display: flex; flex-direction: column; min-height: 220px; padding: 18px 16px 0; }
+.send-amount > p { margin: 0; font-size: 15px; font-weight: 500; color: var(--muted-foreground); }
+.send-figure { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0; min-height: 160px; }
+.send-figure span, .send-figure input { font-size: clamp(64px, 16vw, 88px); font-weight: 500; line-height: 1; color: oklch(0.82 0.01 280); }
+.send-figure input { width: min(8ch, 62vw); min-width: 1.2ch; field-sizing: content; text-align: left; }
+.send-figure.has-value span, .send-figure.has-value input { color: oklch(0.4 0.02 280); }
+.send-balance { margin: 0; text-align: center; padding: 8px 16px 16px; font-size: 16px; font-weight: 700; }
+.send-next { display: flex; align-items: center; justify-content: space-between; min-height: 64px; margin: 0; padding: 0 22px; border: 0; border-radius: 18px 18px 0 0; background: oklch(0.58 0.23 350); color: white; font: inherit; font-size: 20px; font-weight: 600; cursor: pointer; }
+.send-next svg { width: 26px; height: 26px; }
+.send-tick { display: none; }
+.app-shell:has(.send-sheet) .topbar { display: flex; }
+.send-sheet { margin: 0; min-height: 0; background: transparent; }
+.send-phone { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; min-height: 44px; font-size: 18px; font-weight: 700; }
+.pocket-bubble { background: var(--background); color: var(--primary); }
+.pocket-circle strong { color: var(--foreground); }
+.pocket-circle.on .pocket-bubble,
+.entry-pockets .pocket-circle.on .pocket-bubble { background: var(--background); color: var(--primary); box-shadow: 0 0 0 3px var(--primary); }
+.khata-loan .entry-pockets { padding: 0; }
+.pocket-picks button.cash,
+.pocket-picks button.bkash,
+.pocket-picks button.nagad,
+.pocket-picks button.rocket,
+.pocket-picks button.flexi,
+.pocket-picks button.pharma { background: var(--background); color: var(--foreground); border-color: var(--border); }
+.pocket-picks button.cash.on,
+.pocket-picks button.bkash.on,
+.pocket-picks button.nagad.on,
+.pocket-picks button.rocket.on,
+.pocket-picks button.flexi.on,
+.pocket-picks button.pharma.on { background: var(--background); color: var(--primary); border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary); }
+.lock-screen { background: #123 center / cover no-repeat url('/login-bg.jpg'); }
+.login-shell { background: transparent; box-shadow: none; border: 0; }
+.auth-card, .lock-inner.auth-card { background: color-mix(in oklch, white 78%, transparent); backdrop-filter: blur(8px); border-radius: 24px; }
+.day-summary { gap: 8px; }
+.day-summary .day-open, .day-summary .stat-grid button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--background); color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.day-summary .stat-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.day-summary .day-open span, .day-summary .stat-grid button span { display: inline-flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; font-weight: 700; color: var(--foreground); }
+.wizard-content.report-filters { gap: 8px; padding: 10px 12px 12px; }
+.wizard-content.report-filters > .field-hint { display: none; }
+.wizard .report-filters .filter-row { gap: 6px; }
+.wizard .report-filters .filter-row button { min-height: 36px; height: 36px; padding: 0 8px; font-size: 13px; border-radius: 10px; }
+.report-filters .filter-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 6px; }
+.report-filters .filter-dates label { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 12px; font-weight: 700; color: var(--muted-foreground); }
+.report-filters .filter-dates input { min-height: 36px; height: 36px; width: 100%; font-size: 14px; padding: 0 8px; }
+.report-filters > button { min-height: 40px; height: 40px; font-size: 15px; }
+.day-summary .day-open b, .day-summary .stat-grid button b { margin-left: auto; flex-shrink: 0; font-size: 16px; font-weight: 700; text-align: right; }
+.settings-list .staff-see { min-height: 36px; height: 36px; min-width: 0; width: auto; padding: 0 12px; font-size: 14px; align-self: center; }
+.send-sheet { display: flex; flex-direction: column; min-height: calc(100dvh - 190px); }
+.send-next { display: flex; align-items: center; justify-content: center; gap: 8px; width: auto; min-height: 48px; margin: auto 16px 16px; padding: 0 20px; border-radius: 16px; background: var(--primary); color: white; font-size: 17px; font-weight: 700; }
+.pocket-bubble .plain-mark { width: 26px; height: 26px; }
+.pocket-circle.cash .pocket-bubble { background: color-mix(in oklch, var(--cash) 22%, var(--background)); color: var(--cash); }
+.pocket-circle.flexi .pocket-bubble { background: color-mix(in oklch, var(--flexi) 22%, var(--background)); color: var(--flexi); }
+.pocket-circle.pharma .pocket-bubble { background: color-mix(in oklch, var(--pharma) 24%, var(--background)); color: var(--pharma); }
+.pocket-circle.cash.on .pocket-bubble,
+.entry-pockets .pocket-circle.cash.on .pocket-bubble { background: color-mix(in oklch, var(--cash) 22%, var(--background)); color: var(--cash); box-shadow: 0 0 0 3px var(--cash); }
+.pocket-circle.flexi.on .pocket-bubble,
+.entry-pockets .pocket-circle.flexi.on .pocket-bubble { background: color-mix(in oklch, var(--flexi) 22%, var(--background)); color: var(--flexi); box-shadow: 0 0 0 3px var(--flexi); }
+.pocket-circle.pharma.on .pocket-bubble,
+.entry-pockets .pocket-circle.pharma.on .pocket-bubble { background: color-mix(in oklch, var(--pharma) 24%, var(--background)); color: var(--pharma); box-shadow: 0 0 0 3px var(--pharma); }

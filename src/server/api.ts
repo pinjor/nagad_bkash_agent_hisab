@@ -1,5 +1,5 @@
 import { clearSessionCookie, sessionCookie, userFromRequest } from "./auth";
-import { addEmployee, applySync, balances, changeOwnPin, dayHistory, listEmployees, loans, login, people, recentEntries, registerShop, renameShop, repayLoan, report, setEmployeePhone, setEmployeePin, setOwnPhone, shopReady, today, voidTransaction } from "./ledger";
+import { addEmployee, applySync, balances, changeOwnPin, checkOwnPin, dayHistory, listEmployees, loans, login, ownProfile, people, recentEntries, registerShop, renameShop, repayLoan, report, setEmployeePhone, setEmployeePin, setOwnPhone, shopReady, today, voidTransaction } from "./ledger";
 
 function json(data: unknown, status = 200, headers?: HeadersInit) {
   const head = new Headers(headers);
@@ -34,7 +34,8 @@ export async function handleApi(request: Request) {
     if (request.method === "POST" && path === "/api/logout") return json({ ok: true }, 200, { "set-cookie": clearSessionCookie(request) });
     const user = await userFromRequest(request);
     if (!user) return json({ error: "unauthorized" }, 401);
-    if (request.method === "GET" && path === "/api/me") return json(user);
+    if (request.method === "GET" && path === "/api/me") return json(await ownProfile(user));
+    if (request.method === "POST" && path === "/api/pin/check") return json(await checkOwnPin(user, String((await readJson(request)).pin ?? "")));
     if (request.method === "GET" && path === "/api/balances") return json(await balances(user));
     if (request.method === "GET" && path === "/api/today") return json(await today(user));
     if (request.method === "GET" && path === "/api/entries") return json(await recentEntries(user));
@@ -42,7 +43,7 @@ export async function handleApi(request: Request) {
     if (request.method === "GET" && path === "/api/loans") return json(await loans(user));
     if (request.method === "GET" && path === "/api/employees") return json(await listEmployees(user));
     if (request.method === "GET" && path === "/api/reports/day") return json(await report(user));
-    if (request.method === "GET" && path === "/api/reports/days") return json(await dayHistory(user, { range: url.searchParams.get("range") ?? "", kind: url.searchParams.get("kind") ?? "", pocket: url.searchParams.get("pocket") ?? "" }));
+    if (request.method === "GET" && path === "/api/reports/days") return json(await dayHistory(user, { range: url.searchParams.get("range") ?? "", kind: url.searchParams.get("kind") ?? "", pocket: url.searchParams.get("pocket") ?? "", from: url.searchParams.get("from") ?? "", to: url.searchParams.get("to") ?? "" }));
     if (request.method === "POST" && path === "/api/sync") return json(await applySync(user, await readJson(request)));
     if (request.method === "POST" && path === "/api/pin") return json(await changeOwnPin(user, await readJson(request)));
     if (request.method === "POST" && path === "/api/me/phone") return json(await setOwnPhone(user, String((await readJson(request)).phone ?? "")));

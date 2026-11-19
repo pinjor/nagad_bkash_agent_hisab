@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, UserPlus, X } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizeDigits, number, taka } from '../foundations/money';
 import { api, ApiError } from '../foundations/sync';
@@ -8,7 +8,7 @@ import { usePageTitle } from '../foundations/Shell';
 
 interface StaffActivity { at: string; kind: string; detail: string; amount_paisa: number; phone?: string }
 interface StaffMember {
-  id: string; name: string; phone?: string; created_at: string; txn_count: number;
+  id: string; name: string; phone?: string; pin?: string; created_at: string; txn_count: number;
   cash_in_paisa: number; cash_out_paisa: number; flexi_paisa: number;
   lend_count: number; borrow_count: number; person_count: number;
   last_at: string | null; activity: StaffActivity[];
@@ -46,6 +46,7 @@ export function EmployeesPage() {
   const [phoneFor, setPhoneFor] = useState(false);
   const [nextPhone, setNextPhone] = useState('');
   const [phoneSaved, setPhoneSaved] = useState(false);
+  const [seePin, setSeePin] = useState(false);
   const [error, setError] = useState('');
   const digits = settings?.digits;
   const load = () => api<StaffMember[]>('/api/employees').then(setStaffList).catch(() => setError('তালিকা আসেনি'));
@@ -80,8 +81,9 @@ export function EmployeesPage() {
     if (role !== 'admin' || nextPin.length !== 4) { setError('৪ সংখ্যার পিন দিন'); return; }
     if (!online) { setError('পিন বদলাতে ইন্টারনেট লাগবে'); return; }
     try {
-      await api(`/api/employees/${id}/pin`, { method: 'POST', body: JSON.stringify({ pin: nextPin }) });
-      setPinFor(false); setNextPin(''); setPinSaved(true); setError('');
+      const saved = await api<{ pin?: string }>(`/api/employees/${id}/pin`, { method: 'POST', body: JSON.stringify({ pin: nextPin }) });
+      setStaffList((rows) => rows.map((row) => row.id === id ? { ...row, pin: saved.pin || nextPin } : row));
+      setPinFor(false); setNextPin(''); setPinSaved(true); setSeePin(true); setError('');
     } catch { setError('পিন বদলায়নি'); }
   }
   const open = staffList.find((item) => item.id === openId);
@@ -100,7 +102,7 @@ export function EmployeesPage() {
       <div><span><i className="tone in" />মোট হিসাব</span><b>{number(open.txn_count, digits)}টি</b></div>
     </div></section>
     <section className="settings-group"><h2>ফোন</h2>{phoneFor ? <div className="staff-fields"><label>নতুন ফোন<input className="text-input" aria-label={`${open.name} এর ফোন`} placeholder="যেমন ০১৭১১০০০০০০" inputMode="tel" maxLength={11} value={nextPhone} onChange={(event) => setNextPhone(phoneDigits(event.target.value))} /></label><Button variant="ledger" size="touch" onClick={() => changeStaffPhone(open.id)}>ফোন সেভ করুন</Button><Button variant="ghost" size="touch" onClick={() => { setPhoneFor(false); setNextPhone(''); }}>বন্ধ</Button></div> : <Button variant="outline" size="touch" onClick={() => { setPhoneFor(true); setNextPhone(open.phone ?? ''); setPhoneSaved(false); setError(''); }}>ফোন বদলান</Button>}{phoneSaved && <p>ফোন বদলেছে</p>}</section>
-    <section className="settings-group"><h2>পিন</h2>{pinFor ? <div className="staff-fields"><label>নতুন ৪ সংখ্যার পিন<input className="text-input" aria-label={`${open.name} এর নতুন পিন`} placeholder="যেমন ২২২২" inputMode="numeric" maxLength={4} value={nextPin} onChange={(event) => setNextPin(pinDigits(event.target.value))} /></label><Button variant="ledger" size="touch" onClick={() => changeStaffPin(open.id)}>পিন সেভ করুন</Button><Button variant="ghost" size="touch" onClick={() => { setPinFor(false); setNextPin(''); }}>বন্ধ</Button></div> : <Button variant="outline" size="touch" onClick={() => { setPinFor(true); setNextPin(''); setPinSaved(false); setError(''); }}>পিন বদলান</Button>}{pinSaved && <p>পিন বদলেছে</p>}</section>
+    <section className="settings-group"><h2>পিন</h2><div className="profile-row"><strong>{seePin ? (open.pin || 'এখনো সেভ নেই') : '••••'}</strong><Button variant="outline" size="touch" aria-label={seePin ? 'পিন লুকান' : 'পিন দেখুন'} onClick={() => setSeePin((shown) => !shown)}>{seePin ? <EyeOff /> : <Eye />}</Button></div>{pinFor ? <div className="staff-fields"><label>নতুন ৪ সংখ্যার পিন<input className="text-input" aria-label={`${open.name} এর নতুন পিন`} placeholder="যেমন ২২২২" inputMode="numeric" maxLength={4} value={nextPin} onChange={(event) => setNextPin(pinDigits(event.target.value))} /></label><Button variant="ledger" size="touch" onClick={() => changeStaffPin(open.id)}>পিন সেভ করুন</Button><Button variant="ghost" size="touch" onClick={() => { setPinFor(false); setNextPin(''); }}>বন্ধ</Button></div> : <Button variant="outline" size="touch" onClick={() => { setPinFor(true); setNextPin(''); setPinSaved(false); setError(''); }}>পিন বদলান</Button>}{pinSaved && <p>পিন বদলেছে</p>}</section>
     <section className="settings-group"><h2>কাজ</h2>{open.activity.length === 0 ? <p>এখনো কোনো কাজ নেই</p> : <ul className="timeline">{open.activity.map((row, index) => <li key={`${row.at}-${index}`}>{activityLine(row, digits)}</li>)}</ul>}</section>
     {error && <p className="form-error" role="alert">{error}</p>}
   </div>;

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import postgres from "postgres";
+import { seedOpeningOwner } from "./opening";
 
 let sql: ReturnType<typeof postgres> | undefined;
 let ready: Promise<void> | undefined;
@@ -25,7 +26,7 @@ export async function db() {
     const path = schemaPath();
     if (!path) throw new Error("SQL schema file missing");
     const schema = readFileSync(path, "utf8");
-    ready = sql.unsafe(schema).then(() => undefined);
+    ready = sql.unsafe(schema).then(() => seedOpeningOwner(sql)).then(() => undefined);
   }
   await ready;
   return sql;

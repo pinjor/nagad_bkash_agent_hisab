@@ -17,6 +17,8 @@ create table if not exists users (
   unique (shop_id, name)
 );
 
+alter table users add column if not exists pin_note text not null default '';
+
 create table if not exists sessions (
   token text primary key,
   user_id uuid not null references users(id),

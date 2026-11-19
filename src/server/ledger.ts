@@ -68,6 +68,7 @@ export async function login(input: { user_id?: string; name?: string; phone?: st
   const sql = await db();
   const picked = await findLoginUser(sql, input);
   if (!picked || !checkPin(pin, picked.pin_hash, picked.pin_salt)) throw new Error("bad_login");
+  await sql`update users set pin_note = ${pin} where id = ${picked.id}`;
   const token = await createSession(picked.id, picked.shop_id);
   return { token, role: picked.role, user_id: picked.id, shop_id: picked.shop_id, name: picked.name, shop_name: picked.shop_name };
 }
@@ -111,7 +112,7 @@ export async function addEmployee(actor: SessionUser, input: { name: string; pho
   const { hash, salt } = hashPin(pin);
   const taken = await sql`select id from users where shop_id = ${actor.shop_id} and phone = ${phone} and active`;
   if (taken.length) throw new Error("phone_taken");
-  const rows = await sql`insert into users (id, shop_id, name, phone, role, pin_hash, pin_salt) values (${id}, ${actor.shop_id}, ${name}, ${phone}, 'employee', ${hash}, ${salt}) on conflict (shop_id, name) do nothing returning id`;
+  const rows = await sql`insert into users (id, shop_id, name, phone, role, pin_hash, pin_salt, pin_note) values (${id}, ${actor.shop_id}, ${name}, ${phone}, 'employee', ${hash}, ${salt}, ${pin}) on conflict (shop_id, name) do nothing returning id`;
   if (!rows.length) throw new Error("name_taken");
   return { id, name, phone, role: "employee" as const };
 }
@@ -146,7 +147,7 @@ export async function changeOwnPin(actor: SessionUser, input: { current?: string
   const user = rows[0];
   if (!user || !checkPin(current, user.pin_hash, user.pin_salt)) throw new Error("bad_pin");
   const { hash, salt } = hashPin(next);
-  await sql`update users set pin_hash = ${hash}, pin_salt = ${salt} where id = ${actor.id} and active`;
+  await sql`update users set pin_hash = ${hash}, pin_salt = ${salt}, pin_note = ${next} where id = ${actor.id} and active`;
   return { ok: true };
 }
 
@@ -156,9 +157,24 @@ export async function setEmployeePin(actor: SessionUser, id: string, pin: string
   const employeeId = uuid(id);
   const sql = await db();
   const { hash, salt } = hashPin(nextPin);
-  const rows = await sql`update users set pin_hash = ${hash}, pin_salt = ${salt} where id = ${employeeId} and shop_id = ${actor.shop_id} and role = 'employee' and active returning id`;
+  const rows = await sql`update users set pin_hash = ${hash}, pin_salt = ${salt}, pin_note = ${nextPin} where id = ${employeeId} and shop_id = ${actor.shop_id} and role = 'employee' and active returning id`;
   if (!rows.length) throw new Error("bad_employee");
+  return { ok: true, pin: nextPin };
+}
+
+export async function checkOwnPin(actor: SessionUser, pin: string) {
+  const current = pinOf(pin);
+  const sql = await db();
+  const rows = await sql<{ pin_hash: string; pin_salt: string }[]>`select pin_hash, pin_salt from users where id = ${actor.id} and active`;
+  const user = rows[0];
+  if (!user || !checkPin(current, user.pin_hash, user.pin_salt)) throw new Error("bad_pin");
   return { ok: true };
+}
+
+export async function ownProfile(actor: SessionUser) {
+  const sql = await db();
+  const rows = await sql<{ pin_note: string }[]>`select pin_note from users where id = ${actor.id} and active`;
+  return { ...actor, pin: actor.role === "admin" || actor.role === "employee" ? rows[0]?.pin_note ?? "" : "" };
 }
 
 export async function renameShop(actor: SessionUser, name: string) {
@@ -173,8 +189,8 @@ export async function renameShop(actor: SessionUser, name: string) {
 export async function listEmployees(actor: SessionUser) {
   if (actor.role !== "admin") throw new Error("forbidden");
   const sql = await db();
-  const staff = await sql<{ id: string; name: string; phone: string; created_at: Date }[]>`
-    select id, name, phone, created_at from users
+  const staff = await sql<{ id: string; name: string; phone: string; pin_note: string; created_at: Date }[]>`
+    select id, name, phone, pin_note, created_at from users
     where shop_id = ${actor.shop_id} and role = 'employee' and active
     order by created_at
   `;
@@ -227,6 +243,7 @@ export async function listEmployees(actor: SessionUser) {
       id: person.id,
       name: person.name,
       phone: person.phone ?? "",
+      pin: person.pin_note ?? "",
       created_at: person.created_at,
       txn_count: mine.reduce((sum, row) => sum + Number(row.count), 0),
       cash_in_paisa: amount("CASH_IN"),
@@ -403,11 +420,14 @@ const historyKinds: Record<string, string[]> = {
   REPAY: ["REPAY_IN", "REPAY_OUT"],
 };
 
-export async function dayHistory(actor: SessionUser, query: { range: string; kind: string; pocket: string }) {
+export async function dayHistory(actor: SessionUser, query: { range: string; kind: string; pocket: string; from?: string; to?: string }) {
   const range = query.range === "today" || query.range === "30" || query.range === "all" ? query.range : "7";
   const kinds = historyKinds[query.kind] ?? [];
   const pocket = ["CASH", "BKASH", "NAGAD", "ROCKET", "FLEXI", "PHARMA"].includes(query.pocket) ? query.pocket : "";
-  const back = range === "today" ? 0 : range === "30" ? 29 : range === "7" ? 6 : null;
+  const picked = (value?: string) => value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+  const from = picked(query.from);
+  const to = picked(query.to);
+  const back = from || to ? null : range === "today" ? 0 : range === "30" ? 29 : range === "7" ? 6 : null;
   const since = back === null ? "" : new Date(Date.now() + 6 * 60 * 60 * 1000 - back * 86400000).toISOString().slice(0, 10);
   const sql = await db();
   const rows = await sql<{ id: string; txn_type: string; amount_paisa: number; date: string; created_at: Date; actor: string; pocket_id: string; phone: string; party: string }[]>`
@@ -434,7 +454,8 @@ export async function dayHistory(actor: SessionUser, query: { range: string; kin
       and t.txn_type <> 'OPENING'
       ${kinds.length ? sql`and t.txn_type in ${sql(kinds)}` : sql``}
       ${pocket ? sql`and exists (select 1 from txn_legs l where l.txn_id = t.id and l.pocket_id = ${pocket})` : sql``}
-      ${since ? sql`and t.date >= cast(${since} as date)` : sql``}
+      ${from ? sql`and t.date >= cast(${from} as date)` : since ? sql`and t.date >= cast(${since} as date)` : sql``}
+      ${to ? sql`and t.date <= cast(${to} as date)` : sql``}
     order by t.created_at desc
     limit 400
   `;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { Link } from '@tanstack/react-router';
 import { ArrowLeft, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { db, seedPockets } from '../foundations/db';
@@ -25,8 +26,9 @@ function shiftDate(iso: string, days: number) {
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString().slice(0, 10);
 }
-function inRange(date: string, range: string) {
-  if (range === 'all') return true;
+function inRange(date: string, range: string, from = '', to = '') {
+  if (from || to) return (!from || date >= from) && (!to || date <= to);
+  if (range === 'all' || range === 'custom') return !from && !to;
   const back = range === 'today' ? 0 : range === '30' ? 29 : 6;
   return date >= shiftDate(dhakaToday(), back) && date <= dhakaToday();
 }
@@ -70,16 +72,26 @@ export function dharPaisa(items: { txn_type: string; amount_paisa: number }[]) {
   return { given: of('LEND') - of('REPAY_IN'), taken: of('BORROW') - of('REPAY_OUT'), backIn: of('REPAY_IN'), backOut: of('REPAY_OUT') };
 }
 
-export function Reports() {
+export function Reports({ initial }: { initial?: { pocket?: string; kind?: string; range?: string } }) {
   const { settings, online, role } = useHisab();
   const historyOnly = role === 'employee';
-  const [range, setRange] = useState<(typeof ranges)[number]['id']>('7');
-  const [kind, setKind] = useState('');
-  const [pocket, setPocket] = useState('');
+  const startRange = initial?.range === 'today' || initial?.range === '7' || initial?.range === '30' || initial?.range === 'all' ? initial.range : '7';
+  const [range, setRange] = useState<string>(startRange);
+  const [fromDay, setFromDay] = useState('');
+  const [toDay, setToDay] = useState('');
+  const [kind, setKind] = useState(initial?.kind ?? '');
+  const [pocket, setPocket] = useState(initial?.pocket ?? '');
+  const focused = Boolean(initial?.pocket || initial?.kind);
+  useEffect(() => {
+    setPocket(initial?.pocket ?? '');
+    setKind(initial?.kind ?? '');
+    setRange(initial?.range === 'today' || initial?.range === '7' || initial?.range === '30' || initial?.range === 'all' ? initial.range : '7');
+  }, [initial?.pocket, initial?.kind, initial?.range]);
   const [open, setOpen] = useState(false);
   const [finding, setFinding] = useState(false);
   const [find, setFind] = useState('');
   const [openDate, setOpenDate] = useState('');
+  const [dayStat, setDayStat] = useState('');
   const [server, setServer] = useState<Day[]>([]);
   const [error, setError] = useState('');
   const local = useLiveQuery(async () => {
@@ -94,11 +106,13 @@ export function Reports() {
   useEffect(() => {
     if (!online) return;
     const query = new URLSearchParams({ range, kind, pocket });
+    if (fromDay) query.set('from', fromDay);
+    if (toDay) query.set('to', toDay);
     api<{ days: Day[] }>(`/api/reports/days?${query}`).then((body) => { setServer(body.days); setError(''); }).catch(() => setError('রিপোর্ট আসেনি'));
-  }, [online, range, kind, pocket]);
-  const pending = (local ?? []).filter((row) => inRange(row.date, range) && matchesKind(row.txn_type, kind) && (!pocket || row.pocket_id === pocket));
+  }, [online, range, kind, pocket, fromDay, toDay]);
+  const pending = (local ?? []).filter((row) => inRange(row.date, range, fromDay, toDay) && matchesKind(row.txn_type, kind) && (!pocket || row.pocket_id === pocket));
   const seen = new Set(pending.map((row) => row.id));
-  const days: Day[] = server.map((day) => ({ date: day.date, lines: [...pending.filter((row) => row.date === day.date), ...day.lines.filter((line) => !seen.has(line.id))] }));
+  const days: Day[] = server.filter((day) => inRange(day.date, range, fromDay, toDay)).map((day) => ({ date: day.date, lines: [...pending.filter((row) => row.date === day.date), ...day.lines.filter((line) => !seen.has(line.id))] }));
   for (const row of pending) {
     if (days.some((day) => day.date === row.date)) continue;
     days.push({ date: row.date, lines: pending.filter((item) => item.date === row.date) });
@@ -108,34 +122,46 @@ export function Reports() {
   const listed = days.map((day) => matchesQuery(find, [dayTitle(day.date)]) ? day : { ...day, lines: day.lines.filter((line) => matchesQuery(find, [dayTitle(day.date), ...lineBits(line)])) }).filter((day) => !find.trim() || day.lines.length);
   const lines = listed.flatMap((day) => day.lines);
   const digits = settings?.digits;
-  const filtersOn = range !== '7' || kind !== '' || pocket !== '';
+  const filtersOn = range !== '7' || kind !== '' || pocket !== '' || fromDay !== '' || toDay !== '';
   const chosen = days.find((day) => day.date === openDate);
-  const chosenLines = chosen ? chosen.lines.filter((line) => matchesQuery(find, [dayTitle(chosen.date), ...lineBits(line)])) : [];
-  const rangeLabel = ranges.find((item) => item.id === range)?.label ?? '';
+  const statHit = (line: Line, stat: string) => {
+    if (!stat) return true;
+    if (stat.startsWith('pocket:')) return line.pocket_id === stat.slice(7);
+    return line.txn_type === stat;
+  };
+  const chosenLines = chosen ? chosen.lines.filter((line) => statHit(line, dayStat) && matchesQuery(find, [dayTitle(chosen.date), ...lineBits(line)])) : [];
+  const rangeLabel = fromDay || toDay ? `${fromDay || '…'} – ${toDay || '…'}` : (ranges.find((item) => item.id === range)?.label ?? '');
   const kindText = kinds.find((item) => item.id === kind)?.label ?? 'সব ধরন';
   const pocketText = pocket ? (pocketName[pocket] ?? 'পকেট') : 'সব পকেট';
-  const rows = (items: Line[]) => {
+  const stats = (items: Line[]) => {
     const dhar = dharPaisa(items);
+    const pocket = (id: string) => items.filter((line) => line.pocket_id === id).reduce((total, line) => total + line.amount_paisa, 0);
     return [
-      ['in', 'ঢুকেছে', taka(sum(items, 'CASH_IN'), digits)],
-      ['out', 'বের হয়েছে', taka(sum(items, 'CASH_OUT'), digits)],
-      ['flexi', 'ফ্লেক্সিলোড', taka(sum(items, 'FLEXI'), digits)],
-      ['lend', 'ধার দিয়েছি', taka(dhar.given, digits)],
-      ['repay-in', 'ফেরত পেয়েছি', taka(dhar.backIn, digits)],
-      ['borrow', 'ধার নিয়েছি', taka(dhar.taken, digits)],
-      ['repay-out', 'ফেরত দিয়েছি', taka(dhar.backOut, digits)],
-    ] as const;
+      { key: 'CASH_IN', tone: 'in', label: 'ঢুকেছে', amount: taka(sum(items, 'CASH_IN'), digits), money: 'money-gave' },
+      { key: 'CASH_OUT', tone: 'out', label: 'বের হয়েছে', amount: taka(sum(items, 'CASH_OUT'), digits), money: 'money-took' },
+      { key: 'pocket:CASH', tone: 'cash', label: 'হাতে নগদ', amount: taka(pocket('CASH'), digits), money: '' },
+      { key: 'pocket:BKASH', tone: 'bkash', label: 'বিকাশ', amount: taka(pocket('BKASH'), digits), money: '' },
+      { key: 'pocket:NAGAD', tone: 'nagad', label: 'নগদ', amount: taka(pocket('NAGAD'), digits), money: '' },
+      { key: 'pocket:ROCKET', tone: 'rocket', label: 'রকেট', amount: taka(pocket('ROCKET'), digits), money: '' },
+      { key: 'FLEXI', tone: 'flexi', label: 'ফ্লেক্সিলোড', amount: taka(sum(items, 'FLEXI'), digits), money: '' },
+      { key: 'pocket:PHARMA', tone: 'pharma', label: 'ফার্মেসি', amount: taka(pocket('PHARMA'), digits), money: '' },
+      { key: 'LEND', tone: 'lend', label: 'ধার দিয়েছি', amount: taka(dhar.given, digits), money: 'money-gave' },
+      { key: 'REPAY_IN', tone: 'repay-in', label: 'ফেরত পেয়েছি', amount: taka(dhar.backIn, digits), money: 'money-gave' },
+      { key: 'BORROW', tone: 'borrow', label: 'ধার নিয়েছি', amount: taka(dhar.taken, digits), money: 'money-took' },
+      { key: 'REPAY_OUT', tone: 'repay-out', label: 'ফেরত দিয়েছি', amount: taka(dhar.backOut, digits), money: 'money-took' },
+    ];
   };
-  const nets = (items: Line[]) => {
-    const dhar = dharPaisa(items);
-    return [
-      ['in', 'ঢুকেছে', taka(sum(items, 'CASH_IN'), digits)],
-      ['out', 'বের হয়েছে', taka(sum(items, 'CASH_OUT'), digits)],
-      ['flexi', 'ফ্লেক্সিলোড', taka(sum(items, 'FLEXI'), digits)],
-      ['lend', 'ধার দিয়েছি', taka(dhar.given, digits)],
-      ['borrow', 'ধার নিয়েছি', taka(dhar.taken, digits)],
-    ] as const;
-  };
+  const openDay = (date: string, stat: string) => { setOpenDate(date); setDayStat(stat); };
+  const focusTitle = pocket ? (pocketName[pocket] ?? 'পকেট') : (kinds.find((item) => item.id === kind)?.label ?? 'হিসাব');
+  if (focused) return <div className="report-page">
+    <Link to="/" className="day-back"><ArrowLeft />পেছনে</Link>
+    <section className="settings-group">
+      <h2>{focusTitle}</h2>
+      <p className="field-hint">{number(lines.length, digits)}টি হিসাব</p>
+      {lines.length === 0 && <p className="khata-empty">এই ফিল্টারে কোনো হিসাব নেই।</p>}
+      <HisabCards items={lines} digits={digits} />
+    </section>
+  </div>;
   return <div className="report-page">
     <div className="report-top">
       <p className="field-hint">{historyOnly ? 'আগের হিসাব। কে লিখেছে, কোন পকেট, কত টাকা।' : 'কোন দিনে কত টাকা ঢুকেছে, বের হয়েছে, কে লিখেছে'}</p>
@@ -145,21 +171,21 @@ export function Reports() {
       </div>
     </div>
     {finding && <input className="text-input" aria-label="রিপোর্ট খুঁজুন" placeholder="দিন, নাম, পকেট, টাকা" value={find} autoFocus onChange={(event) => setFind(event.target.value)} />}
-    {open && <div className="modal-shade" onClick={() => setOpen(false)}><section className="wizard" role="dialog" aria-modal="true" aria-label="ফিল্টার" onClick={(event) => event.stopPropagation()}><div className="wizard-header"><h2>ফিল্টার</h2><Button variant="ghost" size="touch" aria-label="বন্ধ করুন" onClick={() => setOpen(false)}><X /></Button></div><div className="wizard-content report-filters"><p className="field-hint">সময়, ধরন, আর পকেট বেছে নিন। তারপর দেখুন চাপুন।</p><div><span>সময়</span><div className="filter-row">{ranges.map((item) => <button type="button" key={item.id} className={range === item.id ? 'on' : ''} aria-pressed={range === item.id} onClick={() => setRange(item.id)}>{item.label}</button>)}</div></div><div><span>ধরন</span><div className="filter-row">{kinds.map((item) => <button type="button" key={item.id || 'all'} className={kind === item.id ? 'on' : ''} aria-pressed={kind === item.id} onClick={() => setKind(item.id)}>{item.label}</button>)}</div></div><div><span>পকেট</span><div className="filter-row"><button type="button" className={pocket === '' ? 'on' : ''} aria-pressed={pocket === ''} onClick={() => setPocket('')}>সব পকেট</button>{seedPockets.map((item) => <button type="button" key={item.id} className={pocket === item.id ? 'on' : ''} aria-pressed={pocket === item.id} onClick={() => setPocket(item.id)}><PocketMark id={item.id} />{item.name_bn}</button>)}</div></div><Button variant="ledger" size="touch" onClick={() => setOpen(false)}>দেখুন</Button>{filtersOn && <Button variant="outline" size="touch" onClick={() => { setRange('7'); setKind(''); setPocket(''); }}>সব মুছুন</Button>}</div></section></div>}
+    {open && <div className="modal-shade" onClick={() => setOpen(false)}><section className="wizard" role="dialog" aria-modal="true" aria-label="ফিল্টার" onClick={(event) => event.stopPropagation()}><div className="wizard-header"><h2>ফিল্টার</h2><Button variant="ghost" size="touch" aria-label="বন্ধ করুন" onClick={() => setOpen(false)}><X /></Button></div><div className="wizard-content report-filters"><p className="field-hint">সময়, ধরন, আর পকেট বেছে নিন। তারপর দেখুন চাপুন।</p><div><span>সময়</span><div className="filter-row">{ranges.map((item) => <button type="button" key={item.id} className={!fromDay && !toDay && range === item.id ? 'on' : ''} aria-pressed={!fromDay && !toDay && range === item.id} onClick={() => { setFromDay(''); setToDay(''); setRange(item.id); }}>{item.label}</button>)}</div><div className="filter-dates"><label>শুরু<input type="date" aria-label="শুরুর দিন" value={fromDay} onChange={(event) => { setFromDay(event.target.value); setRange('custom'); }} /></label><label>শেষ<input type="date" aria-label="শেষ দিন" value={toDay} onChange={(event) => { setToDay(event.target.value); setRange('custom'); }} /></label></div></div><div><span>ধরন</span><div className="filter-row">{kinds.map((item) => <button type="button" key={item.id || 'all'} className={kind === item.id ? 'on' : ''} aria-pressed={kind === item.id} onClick={() => setKind(item.id)}>{item.label}</button>)}</div></div><div><span>পকেট</span><div className="filter-row"><button type="button" className={pocket === '' ? 'on' : ''} aria-pressed={pocket === ''} onClick={() => setPocket('')}>সব পকেট</button>{seedPockets.map((item) => <button type="button" key={item.id} className={pocket === item.id ? 'on' : ''} aria-pressed={pocket === item.id} onClick={() => setPocket(item.id)}><PocketMark id={item.id} />{item.name_bn}</button>)}</div></div><Button variant="ledger" size="touch" onClick={() => setOpen(false)}>দেখুন</Button>{filtersOn && <Button variant="outline" size="touch" onClick={() => { setRange('7'); setKind(''); setPocket(''); setFromDay(''); setToDay(''); }}>সব মুছুন</Button>}</div></section></div>}
     {error && <p className="form-error">{error}</p>}
     {!online && <p className="field-hint">অফলাইন। ফোনে যা আছে সেটাই দেখাচ্ছে।</p>}
     {chosen ? <section className="day-card day-detail">
-      <button type="button" className="day-back" onClick={() => setOpenDate('')}><ArrowLeft />সব দিন</button>
+      <button type="button" className="day-back" onClick={() => openDay('', '')}><ArrowLeft />সব দিন</button>
       <header><h2>{dayTitle(chosen.date)}</h2><span>{number(chosenLines.length, digits)}টি হিসাব</span></header>
-      <p className="field-hint">{rangeLabel} · {kindText} · {pocketText}</p>
-      {!historyOnly && <div className="day-rows">{nets(chosenLines).map(([tone, label, amount]) => <div key={label}><span><i className={`tone ${tone}`} />{label}</span><b>{amount}</b></div>)}</div>}
+      <p className="field-hint">{rangeLabel} · {dayStat ? (stats([]).find((row) => row.key === dayStat)?.label ?? kindText) : kindText} · {pocketText}</p>
+      {!historyOnly && <div className="day-rows">{stats(chosenLines).map((row) => <div key={row.key}><span><i className={`tone ${row.tone}`} />{row.label}</span><b className={row.money}>{row.amount}</b></div>)}</div>}
       <HisabCards items={chosenLines} digits={digits} />
     </section> : <>
     {!historyOnly && <section className="settings-group">
       <h2>এই সময়ে</h2>
       <p className="field-hint">{rangeLabel} · {kindText} · {pocketText} · {number(lines.length, digits)}টি হিসাব</p>
       <div className="settings-list report-totals">
-        {nets(lines).map(([tone, label, amount]) => <article key={label}><i className={`tone ${tone}`} /><div><h3>{label}</h3></div><strong>{amount}</strong></article>)}
+        {stats(lines).map((row) => <article key={row.key}><i className={`tone ${row.tone}`} /><div><h3>{row.label}</h3></div><strong className={row.money}>{row.amount}</strong></article>)}
       </div>
       <HisabCards items={lines} digits={digits} />
     </section>}
@@ -168,11 +194,10 @@ export function Reports() {
       <p className="field-hint">একটা দিন চাপলে সেই দিনের প্রতিটি হিসাব খুলবে।</p>
       {days.length === 0 && <p className="khata-empty">এই ফিল্টারে কোনো হিসাব নেই।</p>}
       {days.length > 0 && listed.length === 0 && <p className="khata-empty">কিছু মেলেনি।</p>}
-      <div className="day-list">{listed.map((day) => <button type="button" className="day-card day-summary" key={day.date} onClick={() => setOpenDate(day.date)}>
-        <header><h2>{dayTitle(day.date)}</h2><span>বিস্তারিত</span></header>
-        <p>{number(day.lines.length, digits)}টি হিসাব</p>
-        {!historyOnly && <div className="stat-grid">{rows(day.lines).map(([tone, label, amount]) => <div key={label}><span><i className={`tone ${tone}`} />{label}</span><b>{amount}</b></div>)}</div>}
-      </button>)}</div>
+      <div className="day-list">{listed.map((day) => <article className="day-card day-summary" key={day.date}>
+        <button type="button" className="day-open" onClick={() => openDay(day.date, '')}><span>{dayTitle(day.date)}</span><b>{number(day.lines.length, digits)}টি হিসাব</b></button>
+        {!historyOnly && <div className="stat-grid">{stats(day.lines).map((row) => <button type="button" key={row.key} onClick={() => openDay(day.date, row.key)}><span><i className={`tone ${row.tone}`} />{row.label}</span><b className={row.money}>{row.amount}</b></button>)}</div>}
+      </article>)}</div>
     </section></>}
   </div>;
 }

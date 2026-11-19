@@ -1,5 +1,7 @@
 export type Digits = 'bn' | 'en';
 export const normalizeDigits = (value: string) => value.replace(/[০-৯]/g, d => String('০১২৩৪৫৬৭৮৯'.indexOf(d)));
+export const phoneDigits = (value: string) => normalizeDigits(value).replace(/\D/g, '').slice(0, 11);
+export const phoneOk = (value: string) => /^01\d{9}$/.test(phoneDigits(value));
 export function inDhakaWindow(value: string | number, range: string) {
   if (!range || range === 'all') return true;
   const day = new Date(value).toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' });
@@ -9,6 +11,13 @@ export function inDhakaWindow(value: string | number, range: string) {
   const start = new Date(Date.UTC(year, month - 1, date));
   start.setUTCDate(start.getUTCDate() - back);
   return day >= start.toISOString().slice(0, 10) && day <= today;
+}
+export function inDateSpan(value: string | number, from: string, to: string) {
+  if (!from && !to) return true;
+  const day = new Date(value).toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' });
+  if (from && day < from) return false;
+  if (to && day > to) return false;
+  return true;
 }
 export function matchesQuery(query: string, parts: Array<string | number | null | undefined>) {
   const needle = normalizeDigits(query).trim().toLowerCase();

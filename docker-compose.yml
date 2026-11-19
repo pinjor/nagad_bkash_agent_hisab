@@ -70,6 +70,10 @@ services:
 
       JWT_SECRET: ${JWT_SECRET}
       INIT_DB: ${INIT_DB:-true}
+      OPENING_PHONE: ${OPENING_PHONE:-}
+      OPENING_PIN: ${OPENING_PIN:-}
+      OPENING_NAME: ${OPENING_NAME:-মালিক}
+      OPENING_SHOP_NAME: "${OPENING_SHOP_NAME:-আমার দোকান}"
 
     ports:
       - "127.0.0.1:${APP_HOST_PORT:-7011}:${APP_INTERNAL_PORT:-3000}"
