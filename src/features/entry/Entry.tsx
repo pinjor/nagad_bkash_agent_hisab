@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { seedPockets, queueEntry } from '../foundations/db';
 import { toPaisa, taka, number, phoneDigits, phoneOk } from '../foundations/money';
 import { useHisab } from '../foundations/Provider';
 import { PocketMark } from '../foundations/PocketMark';
 import { SavedPopup } from '../foundations/SavedPopup';
+import { usePageBack } from '../foundations/Shell';
 
 const kinds = [{ id: 'CASH_IN', label: 'টাকা ঢুকেছে' }, { id: 'CASH_OUT', label: 'টাকা বের হয়েছে' }] as const;
 const kindLabel: Record<string, string> = { CASH_IN: 'টাকা ঢুকেছে', CASH_OUT: 'টাকা বের হয়েছে' };
@@ -29,6 +30,7 @@ export function Entry() {
   const parsed = (() => { try { return toPaisa(value || '0'); } catch { return null; } })();
   const shown = parsed == null ? '' : number(parsed / 100, digits);
   const party = pocket === 'PHARMA' ? `${item.trim()} × ${qty.trim()}` : pocket === 'MOBILE' ? item.trim() : '';
+  usePageBack(step === 'summary', () => { setError(''); setStep('write'); });
 
   function ready() {
     if (parsed == null) return 'সঠিক টাকা লিখুন';
@@ -65,37 +67,39 @@ export function Entry() {
   }
 
   return <div className="send-sheet">
-    {step === 'summary' && <button type="button" className="day-back" onClick={() => { setError(''); setStep('write'); }}><ArrowLeft />পেছনে</button>}
-
     {step === 'write' ? <>
       <div className="send-kinds" role="group" aria-label="ধরন">
         {kinds.map((item) => <button type="button" key={item.id} className={`${item.id === 'CASH_IN' ? 'kind-in' : 'kind-out'}${kind === item.id ? ' on' : ''}`} aria-pressed={kind === item.id} onClick={() => setKind(item.id)}>{item.label}</button>)}
       </div>
+      <section className="send-card">
       <div className="pocket-circles entry-pockets" role="group" aria-label="পকেট">
         {seedPockets.map((item) => <button type="button" key={item.id} className={`pocket-circle ${item.color}${pocket === item.id ? ' on' : ''}`} aria-pressed={pocket === item.id} onClick={() => setPocket(item.id)}><span className="pocket-bubble"><PocketMark id={item.id} /></span><span className="pocket-name">{item.name_bn}</span></button>)}
       </div>
       {!skipPhone && <section className="send-block">
-        <p>ফোন</p>
+        <p>ফোন<i className="need" aria-hidden>*</i></p>
         <input className="send-phone" aria-label="ফোন" placeholder="ফোন নম্বর, ০১ দিয়ে ১১ সংখ্যা" inputMode="tel" maxLength={11} value={phone} onChange={(event) => setPhone(phoneDigits(event.target.value))} />
       </section>}
       {pocket === 'PHARMA' && <section className="send-block">
-        <p>ওষুধের নাম</p>
-        <input className="send-phone" aria-label="ওষুধের নাম" placeholder="ওষুধের নাম" maxLength={80} value={item} onChange={(event) => setItem(event.target.value)} />
-        <p>পরিমাণ</p>
+        <p>ওষুধের নাম<i className="need" aria-hidden>*</i></p>
+        <input className="send-phone" aria-label="ওষুধের নাম" placeholder="যেমন নাপা" maxLength={80} value={item} onChange={(event) => setItem(event.target.value)} />
+        <p>পরিমাণ<i className="need" aria-hidden>*</i></p>
         <input className="send-phone" aria-label="পরিমাণ" placeholder="কতটা" inputMode="numeric" maxLength={8} value={qty} onChange={(event) => setQty(event.target.value)} />
       </section>}
       {pocket === 'MOBILE' && <section className="send-block">
-        <p>মোবাইলের নাম</p>
-        <input className="send-phone" aria-label="মোবাইলের নাম" placeholder="মোবাইলের নাম" maxLength={80} value={item} onChange={(event) => setItem(event.target.value)} />
+        <p>মোবাইলের নাম<i className="need" aria-hidden>*</i></p>
+        <input className="send-phone" aria-label="মোবাইলের নাম" placeholder="যেমন Symphony Z60" maxLength={80} value={item} onChange={(event) => setItem(event.target.value)} />
       </section>}
+      </section>
+      <section className="send-card">
       <section className="send-amount">
-        <p>পরিমাণ</p>
+        <p>টাকার পরিমাণ<i className="need" aria-hidden>*</i></p>
         <label className={`send-figure${value ? ' has-value' : ''}`}>
           <span aria-hidden>৳</span>
           <input aria-label="টাকার পরিমাণ" inputMode="decimal" placeholder="0" value={value} onChange={(event) => setValue(event.target.value)} />
         </label>
       </section>
       <p className="send-balance">ব্যবহারযোগ্য ব্যালেন্স: {money(balance)}</p>
+      </section>
       {error && <p className="form-error send-error" role="alert">{error}</p>}
       <button type="button" className="send-next" onClick={review}>পরবর্তী<ArrowRight /></button>
     </> : <section className="send-summary" aria-label="হিসাবের সারাংশ">

@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from '@tanstack/react-router';
-import { BookOpen, House, Plus, Users, ChartNoAxesCombined, Settings, ShieldCheck, Download, Check, RefreshCw } from 'lucide-react';
+import { BookOpen, ChevronLeft, House, Plus, Users, ChartNoAxesCombined, Settings, ShieldCheck, Download, Check, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { db } from './db';
 import { useHisab } from './Provider';
@@ -10,13 +10,26 @@ const items = [{ to: '/', label: 'হোম', icon: House }, { to: '/entry', lab
 const pageTitle: Record<string, string> = { '/': 'আজকের হিসাব', '/entry': 'নতুন হিসাব', '/people': 'খাতা', '/reports': 'রিপোর্ট', '/settings': 'সেটিংস', '/employees': 'কর্মচারী' };
 const pageNote: Record<string, string> = { '/': 'আজ কত টাকা আছে', '/entry': 'টাকা ঢোকান বা বের করুন', '/people': 'কার কাছে কত ধার', '/reports': 'দিনের হিসাব দেখুন', '/settings': 'দোকান ও পিন', '/employees': 'যাঁরা হিসাব লেখেন' };
 const TitleContext = createContext<(value: string) => void>(() => {});
+const BackContext = createContext<(handler: (() => void) | null) => void>(() => {});
 export function usePageTitle(title: string) {
   const setTitle = useContext(TitleContext);
   useEffect(() => { setTitle(title); return () => setTitle(''); }, [setTitle, title]);
 }
+export function usePageBack(active: boolean, onBack: () => void) {
+  const setBack = useContext(BackContext);
+  const saved = useRef(onBack);
+  saved.current = onBack;
+  useEffect(() => {
+    if (!active) { setBack(null); return; }
+    setBack(() => saved.current());
+    return () => setBack(null);
+  }, [setBack, active]);
+}
 export function Shell({ children }: { children: ReactNode }) {
   const { settings, online, role, pending, serverOk, userName } = useHisab(); const path = useLocation().pathname;
   const [menu, setMenu] = useState(false);
+  const [back, setBackState] = useState<(() => void) | null>(null);
+  const setPageBack = useCallback((handler: (() => void) | null) => { setBackState(() => handler); }, []);
   const [detail, setDetail] = useState('');
   const [install, setInstall] = useState<(Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }) | null>(null);
   const [update, setUpdate] = useState(false);
@@ -29,12 +42,12 @@ export function Shell({ children }: { children: ReactNode }) {
   const title = detail || (role === 'employee' && path === '/reports' ? 'আগের হিসাব' : pageTitle[path]) || 'আমার হিসাব';
   const note = detail ? 'এই কর্মচারীর কাজ' : (role === 'employee' && path === '/' ? 'নতুন হিসাব লিখুন' : role === 'employee' && path === '/reports' ? 'প্রতিটি হিসাব' : pageNote[path]) || 'আপনার প্রতিদিনের খাতা';
   const link = !online ? (pending ? `অফলাইন · ফোনে ${number(pending, settings?.digits)}` : 'অফলাইন') : !serverOk ? (pending ? `ফোনে ${number(pending, settings?.digits)}` : 'সার্ভার ধীর') : pending ? `ফোনে ${number(pending, settings?.digits)}` : '';
-  return <TitleContext.Provider value={setDetail}><div className="app-shell">
+  return <TitleContext.Provider value={setDetail}><BackContext.Provider value={setPageBack}><div className="app-shell">
     <aside className="desktop-sidebar"><Link to="/" className="brand"><span className="brand-mark"><BookOpen /></span><span>আমার হিসাব<small>আপনার প্রতিদিনের খাতা</small></span></Link>
       <nav aria-label="প্রধান মেনু">{items.map(item => <Button key={item.to} variant="nav" size="touch" asChild><Link to={item.to} className={path === item.to ? 'active' : ''}><item.icon /><span>{item.label}</span>{path === item.to && <span className="nav-dot" />}</Link></Button>)}</nav>
       <div className="sidebar-foot"><ShieldCheck /><span>হিসাব এই ফোনে থাকে<small>আপনার টাকা, আপনার কাছে</small></span></div>
     </aside>
-    <div className="main-shell"><header className="topbar"><h1 className="shop-title"><span>{title}</span><small className={link ? (online ? 'link-wait' : 'link-offline') : ''}>{note}{link ? ` · ${link}` : ''}</small></h1>
+    <div className="main-shell"><header className="topbar">{back && <button type="button" className="header-back" aria-label="পেছনে" onClick={back}><ChevronLeft /></button>}<h1 className="shop-title"><span>{title}</span><small className={link ? (online ? 'link-wait' : 'link-offline') : ''}>{note}{link ? ` · ${link}` : ''}</small></h1>
       <div className="header-actions" onPointerDown={(event) => event.stopPropagation()}>
         <button type="button" className="name-chip" aria-expanded={menu} onClick={() => setMenu((open) => !open)}><span className="balance-face" aria-hidden>{(userName || 'ম').slice(0, 1)}</span><span>{userName || 'নাম'}</span></button>
         {menu && <div className="signout-pop" role="menu"><button type="button" onClick={async () => { try { await api('/api/logout', { method: 'POST' }); } catch { /* অফলাইনেও বের হবে */ } await db.session.delete('main'); }}>লগ আউট</button></div>}
@@ -45,5 +58,5 @@ export function Shell({ children }: { children: ReactNode }) {
     <main className="page-content">{children}</main><footer className="desktop-footer"><ShieldCheck />হিসাব সেভ হয় এই ফোনে<span>আমার হিসাব</span></footer>
     </div>
     <nav className="mobile-nav" aria-label="প্রধান মেনু">{items.map(item => <Button key={item.to} variant="nav" size="touch" asChild><Link to={item.to} className={path === item.to ? 'active' : ''}><item.icon /><span>{item.label}</span></Link></Button>)}</nav>
-  </div></TitleContext.Provider>;
+  </div></BackContext.Provider></TitleContext.Provider>;
 }

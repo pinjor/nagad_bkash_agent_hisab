@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Link } from '@tanstack/react-router';
-import { ArrowLeft, Search, SlidersHorizontal, X } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { db, seedPockets } from '../foundations/db';
 import { PocketMark } from '../foundations/PocketMark';
 import { matchesQuery, number, taka } from '../foundations/money';
 import { api } from '../foundations/sync';
 import { useHisab } from '../foundations/Provider';
+import { usePageBack } from '../foundations/Shell';
 
 const ranges = [{ id: 'today', label: 'আজ' }, { id: '7', label: '৭ দিন' }, { id: '30', label: '৩০ দিন' }, { id: 'all', label: 'সব' }] as const;
 const kinds = [{ id: '', label: 'সব ধরন' }, { id: 'CASH_IN', label: 'টাকা ঢুকেছে' }, { id: 'CASH_OUT', label: 'টাকা বের হয়েছে' }, { id: 'FLEXI', label: 'ফ্লেক্সিলোড' }, { id: 'LEND', label: 'ধার দিয়েছি' }, { id: 'BORROW', label: 'ধার নিয়েছি' }, { id: 'REPAY', label: 'ফেরত' }] as const;
@@ -145,17 +146,25 @@ export function Reports({ initial }: { initial?: { pocket?: string; kind?: strin
       { key: 'pocket:ROCKET', tone: 'rocket', label: 'রকেট', amount: taka(pocket('ROCKET'), digits), money: '' },
       { key: 'FLEXI', tone: 'flexi', label: 'ফ্লেক্সিলোড', amount: taka(sum(items, 'FLEXI'), digits), money: '' },
       { key: 'pocket:PHARMA', tone: 'pharma', label: 'ফার্মেসি', amount: taka(pocket('PHARMA'), digits), money: '' },
-      { key: 'pocket:MOBILE', tone: 'mobile', label: 'মোবাইল', amount: taka(pocket('MOBILE'), digits), money: '' },
       { key: 'LEND', tone: 'lend', label: 'ধার দিয়েছি', amount: taka(dhar.given, digits), money: 'money-gave' },
-      { key: 'REPAY_IN', tone: 'repay-in', label: 'ফেরত পেয়েছি', amount: taka(dhar.backIn, digits), money: 'money-gave' },
       { key: 'BORROW', tone: 'borrow', label: 'ধার নিয়েছি', amount: taka(dhar.taken, digits), money: 'money-took' },
+      { key: 'REPAY_IN', tone: 'repay-in', label: 'ফেরত পেয়েছি', amount: taka(dhar.backIn, digits), money: 'money-gave' },
       { key: 'REPAY_OUT', tone: 'repay-out', label: 'ফেরত দিয়েছি', amount: taka(dhar.backOut, digits), money: 'money-took' },
+      { key: 'pocket:MOBILE', tone: 'mobile', label: 'মোবাইল', amount: taka(pocket('MOBILE'), digits), money: '' },
     ];
   };
+  const loanKeys = ['LEND', 'BORROW', 'REPAY_IN', 'REPAY_OUT'];
+  const splitStats = (items: Line[]) => {
+    const rows = stats(items);
+    const rest = rows.filter((row) => !loanKeys.includes(row.key) && row.key !== 'pocket:MOBILE');
+    return { rest, mobile: rows.find((row) => row.key === 'pocket:MOBILE')!, loans: loanKeys.map((key) => rows.find((row) => row.key === key)!) };
+  };
+  const pairRows = (rows: ReturnType<typeof stats>) => rows.reduce<Array<ReturnType<typeof stats>>>((pairs, row, index, all) => index % 2 ? pairs : [...pairs, all.slice(index, index + 2)], []);
   const openDay = (date: string, stat: string) => { setOpenDate(date); setDayStat(stat); };
+  const goHome = useNavigate();
+  usePageBack(focused || Boolean(chosen), () => { if (focused) void goHome({ to: '/' }); else openDay('', ''); });
   const focusTitle = pocket ? (pocketName[pocket] ?? 'পকেট') : (kinds.find((item) => item.id === kind)?.label ?? 'হিসাব');
   if (focused) return <div className="report-page">
-    <Link to="/" className="day-back"><ArrowLeft />পেছনে</Link>
     <section className="settings-group">
       <h2>{focusTitle}</h2>
       <p className="field-hint">{number(lines.length, digits)}টি হিসাব</p>
@@ -171,11 +180,10 @@ export function Reports({ initial }: { initial?: { pocket?: string; kind?: strin
       </div>
     </div>
     {finding && <input className="text-input" aria-label="রিপোর্ট খুঁজুন" placeholder="দিন, নাম, পকেট, টাকা" value={find} autoFocus onChange={(event) => setFind(event.target.value)} />}
-    {open && <div className="modal-shade" onClick={() => setOpen(false)}><section className="wizard" role="dialog" aria-modal="true" aria-label="ফিল্টার" onClick={(event) => event.stopPropagation()}><div className="wizard-header"><h2>ফিল্টার</h2><Button variant="ghost" size="touch" aria-label="বন্ধ করুন" onClick={() => setOpen(false)}><X /></Button></div><div className="wizard-content report-filters"><p className="field-hint">সময়, ধরন, আর পকেট বেছে নিন। তারপর দেখুন চাপুন।</p><div><span>সময়</span><div className="filter-row">{ranges.map((item) => <button type="button" key={item.id} className={!fromDay && !toDay && range === item.id ? 'on' : ''} aria-pressed={!fromDay && !toDay && range === item.id} onClick={() => { setFromDay(''); setToDay(''); setRange(item.id); }}>{item.label}</button>)}</div><div className="filter-dates"><label>শুরু<input type="date" aria-label="শুরুর দিন" value={fromDay} onChange={(event) => { setFromDay(event.target.value); setRange('custom'); }} /></label><label>শেষ<input type="date" aria-label="শেষ দিন" value={toDay} onChange={(event) => { setToDay(event.target.value); setRange('custom'); }} /></label></div></div><div><span>ধরন</span><div className="filter-row">{kinds.map((item) => <button type="button" key={item.id || 'all'} className={kind === item.id ? 'on' : ''} aria-pressed={kind === item.id} onClick={() => setKind(item.id)}>{item.label}</button>)}</div></div><div><span>পকেট</span><div className="filter-row"><button type="button" className={pocket === '' ? 'on' : ''} aria-pressed={pocket === ''} onClick={() => setPocket('')}>সব পকেট</button>{seedPockets.map((item) => <button type="button" key={item.id} className={pocket === item.id ? 'on' : ''} aria-pressed={pocket === item.id} onClick={() => setPocket(item.id)}><PocketMark id={item.id} />{item.name_bn}</button>)}</div></div><Button variant="ledger" size="touch" onClick={() => setOpen(false)}>দেখুন</Button>{filtersOn && <Button variant="outline" size="touch" onClick={() => { setRange('7'); setKind(''); setPocket(''); setFromDay(''); setToDay(''); }}>সব মুছুন</Button>}</div></section></div>}
+    {open && <div className="modal-shade" onClick={() => setOpen(false)}><section className="wizard" role="dialog" aria-modal="true" aria-label="ফিল্টার" onClick={(event) => event.stopPropagation()}><div className="wizard-header"><h2>ফিল্টার</h2><Button variant="ghost" size="touch" aria-label="বন্ধ করুন" onClick={() => setOpen(false)}><X /></Button></div><div className="wizard-content report-filters"><p className="field-hint">সময়, ধরন, আর পকেট বেছে নিন। তারপর দেখুন চাপুন।</p><div><span>সময়</span><div className="filter-row filter-range">{ranges.map((item) => <button type="button" key={item.id} className={!fromDay && !toDay && range === item.id ? 'on' : ''} aria-pressed={!fromDay && !toDay && range === item.id} onClick={() => { setFromDay(''); setToDay(''); setRange(item.id); }}>{item.label}</button>)}</div><div className="filter-dates"><label>শুরু<input type="date" aria-label="শুরুর দিন" value={fromDay} onChange={(event) => { setFromDay(event.target.value); setRange('custom'); }} /></label><label>শেষ<input type="date" aria-label="শেষ দিন" value={toDay} onChange={(event) => { setToDay(event.target.value); setRange('custom'); }} /></label></div></div><div><span>ধরন</span><div className="filter-row filter-picks">{kinds.map((item) => <button type="button" key={item.id || 'all'} className={kind === item.id ? 'on' : ''} aria-pressed={kind === item.id} onClick={() => setKind(item.id)}>{item.label}</button>)}</div></div><div><span>পকেট</span><div className="filter-row filter-picks"><button type="button" className={pocket === '' ? 'on' : ''} aria-pressed={pocket === ''} onClick={() => setPocket('')}>সব পকেট</button>{seedPockets.map((item) => <button type="button" key={item.id} className={pocket === item.id ? 'on' : ''} aria-pressed={pocket === item.id} onClick={() => setPocket(item.id)}><PocketMark id={item.id} />{item.name_bn}</button>)}</div></div><Button variant="ledger" size="touch" onClick={() => setOpen(false)}>দেখুন</Button>{filtersOn && <Button variant="outline" size="touch" onClick={() => { setRange('7'); setKind(''); setPocket(''); setFromDay(''); setToDay(''); }}>সব মুছুন</Button>}</div></section></div>}
     {error && <p className="form-error">{error}</p>}
     {!online && <p className="field-hint">অফলাইন। ফোনে যা আছে সেটাই দেখাচ্ছে।</p>}
     {chosen ? <section className="day-card day-detail">
-      <button type="button" className="day-back" onClick={() => openDay('', '')}><ArrowLeft />সব দিন</button>
       <header><h2>{dayTitle(chosen.date)}</h2><span>{number(chosenLines.length, digits)}টি হিসাব</span></header>
       <p className="field-hint">{rangeLabel} · {dayStat ? (stats([]).find((row) => row.key === dayStat)?.label ?? kindText) : kindText} · {pocketText}</p>
       {!historyOnly && <div className="day-rows">{stats(chosenLines).map((row) => <div key={row.key}><span><i className={`tone ${row.tone}`} />{row.label}</span><b className={row.money}>{row.amount}</b></div>)}</div>}
@@ -184,17 +192,19 @@ export function Reports({ initial }: { initial?: { pocket?: string; kind?: strin
     {!historyOnly && <section className="settings-group">
       <h2>এই সময়ে</h2>
       <p className="field-hint">{rangeLabel} · {kindText} · {pocketText} · {number(lines.length, digits)}টি হিসাব</p>
-      <div className="settings-list report-totals">
-        {stats(lines).map((row) => <article key={row.key}><i className={`tone ${row.tone}`} /><div><h3>{row.label}</h3></div><strong className={row.money}>{row.amount}</strong></article>)}
-      </div>
+      <table className="report-table">
+        <tbody>
+          {(() => { const { rest, loans, mobile } = splitStats(lines); return [...pairRows(rest), [loans[0], loans[1]], [loans[2], loans[3]], [mobile]]; })().map((pair) => <tr key={pair[0].key}>{pair.map((row) => <td key={row.key}><span className="report-cell"><span><i className={`tone ${row.tone}`} />{row.label}</span><b className={row.money}>{row.amount}</b></span></td>)}</tr>)}
+        </tbody>
+      </table>
     </section>}
     <section className="settings-group">
       <h2>দিন ধরে</h2>
       {days.length === 0 && <p className="khata-empty">এই ফিল্টারে কোনো হিসাব নেই।</p>}
       {days.length > 0 && listed.length === 0 && <p className="khata-empty">কিছু মেলেনি।</p>}
       <div className="day-list">{listed.map((day) => <article className="day-card day-summary" key={day.date}>
-        <button type="button" className="day-open" onClick={() => openDay(day.date, '')}><span>{dayTitle(day.date)}</span><b>{number(day.lines.length, digits)}টি হিসাব</b></button>
-        {!historyOnly && <div className="stat-grid">{stats(day.lines).map((row) => <button type="button" key={row.key} onClick={() => openDay(day.date, row.key)}><span><i className={`tone ${row.tone}`} />{row.label}</span><b className={row.money}>{row.amount}</b></button>)}</div>}
+        <button type="button" className="day-open" onClick={() => openDay(day.date, '')}><span>{dayTitle(day.date)}</span><b>{number(day.lines.length, digits)}টি হিসাব<ChevronRight /></b></button>
+        {!historyOnly && <div className="stat-grid">{(() => { const { rest, loans, mobile } = splitStats(day.lines); const button = (row: ReturnType<typeof stats>[number]) => <button type="button" key={row.key} onClick={() => openDay(day.date, row.key)}><span><i className={`tone ${row.tone}`} />{row.label}</span><b className={row.money}>{row.amount}<ChevronRight /></b></button>; return <>{rest.map(button)}<div className="stat-pair">{loans.slice(0, 2).map(button)}</div><div className="stat-pair">{loans.slice(2).map(button)}</div>{button(mobile)}</>; })()}</div>}
       </article>)}</div>
     </section></>}
   </div>;

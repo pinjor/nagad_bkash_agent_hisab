@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowRight, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { db, queueLoan, queuePerson, queueRepayment, seedPockets, type CachedPerson } from '../foundations/db';
 import { PocketMark } from '../foundations/PocketMark';
 import { loansWithPending } from '../foundations/ledger-view';
 import { inDateSpan, inDhakaWindow, matchesQuery, number, phoneDigits, phoneOk, taka, toPaisa } from '../foundations/money';
 import { useHisab } from '../foundations/Provider';
-import { usePageTitle } from '../foundations/Shell';
+import { usePageBack, usePageTitle } from '../foundations/Shell';
 import { api } from '../foundations/sync';
 import { SavedPopup } from '../foundations/SavedPopup';
 
@@ -142,6 +142,7 @@ export function People() {
   }).filter((group) => (loanOn ? group.loans.length > 0 : matchesQuery(find, [group.name, group.phone]) || group.loans.length > 0));
   const open = [...groups.values()].find((group) => group.id === openId);
   usePageTitle(open?.name ?? '');
+  usePageBack(Boolean(open) || step === 'summary', () => { if (open) setOpenId(''); else { setError(''); setStep('write'); } });
   const brief = (group: { loans: Loan[] }) => {
     const lend = group.loans.filter((loan) => loan.direction === 'lend').reduce((sum, loan) => sum + loan.remaining_paisa, 0);
     const borrow = group.loans.filter((loan) => loan.direction === 'borrow').reduce((sum, loan) => sum + loan.remaining_paisa, 0);
@@ -156,22 +157,26 @@ export function People() {
     </div>
     <div className="khata-compose">
       <section className="khata-loan">
-        {step === 'summary' && <button type="button" className="day-back" onClick={() => { setError(''); setStep('write'); }}><ArrowLeft />পেছনে</button>}
         {step === 'write' ? <>
           <div className="send-kinds" role="group" aria-label="ধারের ধরন">
             <button type="button" className={`kind-out${direction === 'lend' ? ' on' : ''}`} aria-pressed={direction === 'lend'} onClick={() => setDirection('lend')}>ধার দিয়েছি</button>
             <button type="button" className={`kind-in${direction === 'borrow' ? ' on' : ''}`} aria-pressed={direction === 'borrow'} onClick={() => { setDirection('borrow'); if (pocket === 'FLEXI') setPocket('CASH'); }}>ধার নিয়েছি</button>
           </div>
+          <section className="send-card">
           <div className="pocket-circles entry-pockets" role="group" aria-label="কোন পকেট থেকে">{seedPockets.filter((item) => item.id !== 'PHARMA' && item.id !== 'MOBILE' && !(direction === 'borrow' && item.id === 'FLEXI')).map((item) => <button type="button" key={item.id} className={`pocket-circle ${item.color}${pocket === item.id ? ' on' : ''}`} aria-pressed={pocket === item.id} onClick={() => setPocket(item.id)}><span className="pocket-bubble"><PocketMark id={item.id} /></span><span className="pocket-name">{item.name_bn}</span></button>)}</div>
           <section className="send-block">
-            <p>কার কাছে</p>
+            <p>কার কাছে<i className="need" aria-hidden>*</i></p>
             <div className="khata-name-row"><select className="send-phone" aria-label="কার কাছে" value={personId} onChange={(event) => setPersonId(event.target.value)}><option value="">নাম বেছে নিন</option>{people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select><Button className="mini-btn" variant="outline" size="touch" onClick={() => setAdding(true)}>নতুন নাম</Button></div>
           </section>
+          </section>
+          <section className="send-card">
           <section className="send-amount">
+            <p>টাকার পরিমাণ<i className="need" aria-hidden>*</i></p>
             <label className={`send-figure${amount ? ' has-value' : ''}`}><span aria-hidden>৳</span><input aria-label="টাকার পরিমাণ" inputMode="decimal" placeholder="0" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
           </section>
           <label className="khata-due">কবে ফেরত আশা করেন<input aria-label="কবে ফেরত আশা করেন" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} /></label>
           <p className="send-balance">ব্যবহারযোগ্য ব্যালেন্স: {money(balance)}</p>
+          </section>
           {error && <p className="form-error send-error" role="alert">{error}</p>}
           <button type="button" className="send-next" onClick={reviewLoan}>পরবর্তী<ArrowRight /></button>
         </> : <section className="send-summary" aria-label="ধারের সারাংশ">
@@ -186,12 +191,11 @@ export function People() {
         </section>}
       </section>
     </div>
-    {adding && <div className="modal-shade"><section className="wizard" role="dialog" aria-label="নতুন মানুষ"><div className="wizard-header"><h2>নতুন মানুষ</h2><Button variant="ghost" size="touch" aria-label="বন্ধ করুন" onClick={() => setAdding(false)}>বন্ধ</Button></div><div className="wizard-content"><p className="field-hint">যার সঙ্গে ধার রাখবেন, তার নাম দিন। ফোন না থাকলে খালি রাখুন।</p><label>নাম<input className="text-input" aria-label="নাম" placeholder="যেমন করিম" value={name} onChange={(event) => setName(event.target.value)} maxLength={60} /></label><label>ফোন, না থাকলে খালি রাখুন<input className="text-input" aria-label="ফোন" placeholder="যেমন ০১৭১১০০০০০০" inputMode="tel" value={phone} onChange={(event) => setPhone(phoneDigits(event.target.value))} maxLength={11} /></label><Button variant="ledger" size="touch" onClick={addPerson}>খাতায় যোগ করুন</Button></div></section></div>}
+    {adding && <div className="modal-shade"><section className="wizard" role="dialog" aria-label="নতুন মানুষ"><div className="wizard-header"><h2>নতুন মানুষ</h2><Button variant="ghost" size="touch" aria-label="বন্ধ করুন" onClick={() => setAdding(false)}>বন্ধ</Button></div><div className="wizard-content"><p className="field-hint">যার সঙ্গে ধার রাখবেন, তার নাম দিন। ফোন না থাকলে খালি রাখুন।</p><label><span>নাম<i className="need" aria-hidden>*</i></span><input className="text-input" aria-label="নাম" placeholder="যেমন করিম" value={name} onChange={(event) => setName(event.target.value)} maxLength={60} /></label><label>ফোন, না থাকলে খালি রাখুন<input className="text-input" aria-label="ফোন" placeholder="যেমন ০১৭১১০০০০০০" inputMode="tel" value={phone} onChange={(event) => setPhone(phoneDigits(event.target.value))} maxLength={11} /></label><Button variant="ledger" size="touch" onClick={addPerson}>খাতায় যোগ করুন</Button></div></section></div>}
     {pane === 'list' && error && <p className="form-error" role="alert">{error}</p>}
     <div className="finder"><div className="finder-actions"><button type="button" className={`search-open${finding ? ' on' : ''}`} aria-expanded={finding} onClick={() => { setFinding((open) => !open); setFind(''); }}><Search />খুঁজুন</button><button type="button" className={`filter-open${loanOn ? ' on' : ''}`} aria-haspopup="dialog" aria-expanded={filtering} onClick={() => setFiltering(true)}><SlidersHorizontal />ফিল্টার</button></div>{finding && <input className="text-input" aria-label="খাতা খুঁজুন" placeholder="নাম, ফোন, টাকা" value={find} autoFocus onChange={(event) => setFind(event.target.value)} />}{filtering && <div className="modal-shade" onClick={() => setFiltering(false)}><section className="wizard" role="dialog" aria-modal="true" aria-label="ফিল্টার" onClick={(event) => event.stopPropagation()}><div className="wizard-header"><h2>ফিল্টার</h2><Button variant="ghost" size="touch" aria-label="বন্ধ করুন" onClick={() => setFiltering(false)}><X /></Button></div><div className="wizard-content report-filters"><div><span>সময়</span><div className="filter-row">{[['all', 'সব'], ['today', 'আজ'], ['7', '৭ দিন'], ['30', '৩০ দিন']].map(([id, label]) => <button type="button" key={id} className={!loanFrom && !loanTo && loanWhen === id ? 'on' : ''} aria-pressed={!loanFrom && !loanTo && loanWhen === id} onClick={() => { setLoanWhen(id); setLoanFrom(''); setLoanTo(''); }}>{label}</button>)}</div><div className="filter-dates"><label>শুরু<input type="date" aria-label="শুরুর দিন" value={loanFrom} onChange={(event) => setLoanFrom(event.target.value)} /></label><label>শেষ<input type="date" aria-label="শেষ দিন" value={loanTo} onChange={(event) => setLoanTo(event.target.value)} /></label></div></div><div><span>ধরন</span><div className="filter-row"><button type="button" className={loanWay === '' ? 'on' : ''} aria-pressed={loanWay === ''} onClick={() => setLoanWay('')}>সব</button><button type="button" className={loanWay === 'lend' ? 'on' : ''} aria-pressed={loanWay === 'lend'} onClick={() => setLoanWay('lend')}>আমি দিয়েছি</button><button type="button" className={loanWay === 'borrow' ? 'on' : ''} aria-pressed={loanWay === 'borrow'} onClick={() => setLoanWay('borrow')}>আমি নিয়েছি</button></div></div><div><span>অবস্থা</span><div className="filter-row"><button type="button" className={loanState === '' ? 'on' : ''} aria-pressed={loanState === ''} onClick={() => setLoanState('')}>সব</button><button type="button" className={loanState === 'open' ? 'on' : ''} aria-pressed={loanState === 'open'} onClick={() => setLoanState('open')}>এখনো খোলা</button><button type="button" className={loanState === 'partial' ? 'on' : ''} aria-pressed={loanState === 'partial'} onClick={() => setLoanState('partial')}>কিছু ফিরেছে</button><button type="button" className={loanState === 'closed' ? 'on' : ''} aria-pressed={loanState === 'closed'} onClick={() => setLoanState('closed')}>শোধ হয়ে গেছে</button></div></div><Button variant="ledger" size="touch" onClick={() => setFiltering(false)}>দেখুন</Button>{loanOn && <Button variant="outline" size="touch" onClick={() => { setLoanWay(''); setLoanState(''); setLoanWhen('all'); setLoanFrom(''); setLoanTo(''); }}>সব মুছুন</Button>}</div></section></div>}</div>
     {saved && <SavedPopup title={saved.title} detail={saved.detail} onClose={() => setSaved(null)} />}
     {open ? <div className="khata-detail">
-      <Button variant="ghost" size="touch" className="day-back" onClick={() => setOpenId('')}><ArrowLeft />খাতায় ফিরুন</Button>
       <header className="khata-detail-head"><h2>{open.name}</h2><p>{open.phone || 'ফোন নেই'}</p><p>খাতায় যোগ করেছেন {wrote(open.writer)}</p></header>
       {open.loans.length === 0 && <p className="khata-empty">এই নামে এখনো ধার নেই।</p>}
       {open.loans.map((loan) => {
@@ -210,7 +214,7 @@ export function People() {
           </div>
           <h3>যা হয়েছে</h3>
           <ul className="khata-story">{loan.events.map((event) => <li key={event.id}><span>{event.type === 'open' ? (loan.direction === 'lend' ? 'শুরুতে দিয়েছি' : 'শুরুতে নিয়েছি') : (loan.direction === 'lend' ? 'ফেরত পেয়েছি' : 'ফেরত দিয়েছি')}<small>{stamp(event.at)} · {wrote(event.writer)}</small></span><b>{taka(event.amount_paisa, settings?.digits)}</b></li>)}</ul>
-          {role === 'admin' && loan.status !== 'closed' && !loan.pending && <div className="repay-row"><label>কত টাকা ফিরে এল<input className="text-input" aria-label="কত টাকা ফিরে এল" placeholder="যেমন ১০০" inputMode="decimal" value={repay[loan.id] ?? ''} onChange={(event) => setRepay({ ...repay, [loan.id]: event.target.value })} /></label><Button variant="outline" size="touch" onClick={() => pay(loan)}>{loan.direction === 'lend' ? 'ফেরত পেয়েছি' : 'ফেরত দিয়েছি'}</Button></div>}
+          {role === 'admin' && loan.status !== 'closed' && !loan.pending && <div className="repay-row"><label><span>কত টাকা ফিরে এল<i className="need" aria-hidden>*</i></span><input className="text-input" aria-label="কত টাকা ফিরে এল" placeholder="যেমন ১০০" inputMode="decimal" value={repay[loan.id] ?? ''} onChange={(event) => setRepay({ ...repay, [loan.id]: event.target.value })} /></label><Button variant="outline" size="touch" onClick={() => pay(loan)}>{loan.direction === 'lend' ? 'ফেরত পেয়েছি' : 'ফেরত দিয়েছি'}</Button></div>}
         </section>;
       })}
     </div> : <div className="loan-list">{groups.size === 0 && <p className="khata-empty">এখনো কেউ নেই। নতুন লিখি খুলে নতুন নাম যোগ করুন।</p>}{groups.size > 0 && listed.length === 0 && <p className="khata-empty">কিছু মেলেনি।</p>}{listed.map((group) => <button type="button" className="khata-person-card" key={group.id} onClick={() => { setOpenId(group.id); setPane('list'); }}><span><strong>{group.name}</strong><small>{group.phone || 'ফোন নেই'} · {brief(group)}</small></span><ChevronRight /></button>)}</div>}

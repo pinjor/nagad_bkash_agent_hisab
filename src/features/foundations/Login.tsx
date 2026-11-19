@@ -104,13 +104,15 @@ export function Login({ online }: { online: boolean }) {
       <span className="login-badge" aria-hidden><ShoppingBag /></span>
       <h1>আমার হিসাব</h1>
       <p className="auth-lead">ফোন নম্বর লিখুন, তারপর পিন</p>
+      <p className="need-label">ফোন<i className="need" aria-hidden>*</i></p>
       <label className={`login-field${pad === 'phone' ? ' on' : ''}`}><span onClick={() => setPad('phone')}><Smartphone /><input className="text-input" aria-label="ফোন" placeholder="যেমন ০১৭১১০০০০০০" inputMode="none" enterKeyHint="done" value={phone} onFocus={() => setPad('phone')} onChange={(event) => setPhone(phoneDigits(event.target.value))} maxLength={11} autoComplete="tel" /></span></label>
       <div className="auth-pin">
+        <p className="need-label">পিন<i className="need" aria-hidden>*</i></p>
         <div key={shake} className={`login-pin${wrong ? ' wrong' : ''}${pad === 'pin' ? ' on' : ''}`} onClick={() => setPad('pin')}>
           <LockKeyhole />
           {pin.length === 0 ? <span className="login-pin-hint">৪ সংখ্যার পিন</span> : <span className={dots} aria-label={wrong ? 'পিন মিলেনি' : `${pin.length}টি সংখ্যা`}>{Array.from({ length: 4 }, (_, i) => <span key={i} className={i < pin.length ? 'filled' : ''} />)}</span>}
         </div>
-        <Keypad value={pad === 'phone' ? phoneDigits(phone) : pin} onChange={onPad} pin={pad === 'pin'} max={pad === 'phone' ? 11 : 4} />
+        <Keypad value={pad === 'phone' ? phoneDigits(phone) : pin} onChange={onPad} pin={pad === 'pin'} quick={[]} max={pad === 'phone' ? 11 : 4} />
         {error && <p className="form-error" role="alert">{error}</p>}
         <Button className="login-go" variant="ledger" size="primary" disabled={pin.length !== 4 || !phoneOk(phone) || busy || wrong} onClick={submit}>ঢুকুন</Button>
       </div>
