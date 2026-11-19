@@ -99,6 +99,7 @@ export function People() {
       if (principal == null) { setError('সঠিক টাকা লিখুন'); return; }
       if (!personId || !principal) { setError('আগে নাম বেছে নিন, তারপর টাকার পরিমাণ দিন'); return; }
       if (direction === 'lend' && principal > balance) { setError('ব্যবহারযোগ্য ব্যালেন্সের বেশি যাবে না'); return; }
+      if (pocket === 'PHARMA' || pocket === 'MOBILE' || (direction === 'borrow' && pocket === 'FLEXI')) { setError('এই পকেট এখানে যায় না'); return; }
       await queueLoan({ person_id: personId, direction, principal_paisa: principal, pocket_id: pocket, due_at: dueStamp() });
       setAmount(''); setDueDate(nextDhakaDay()); setStep('write'); setPane('list');
       setSaved({ title: 'ধার সেভ হয়েছে', detail: `${direction === 'lend' ? 'আমি দিয়েছি' : 'আমি নিয়েছি'} · ${taka(principal, settings?.digits)}` });
@@ -159,9 +160,9 @@ export function People() {
         {step === 'write' ? <>
           <div className="send-kinds" role="group" aria-label="ধারের ধরন">
             <button type="button" className={`kind-out${direction === 'lend' ? ' on' : ''}`} aria-pressed={direction === 'lend'} onClick={() => setDirection('lend')}>ধার দিয়েছি</button>
-            <button type="button" className={`kind-in${direction === 'borrow' ? ' on' : ''}`} aria-pressed={direction === 'borrow'} onClick={() => setDirection('borrow')}>ধার নিয়েছি</button>
+            <button type="button" className={`kind-in${direction === 'borrow' ? ' on' : ''}`} aria-pressed={direction === 'borrow'} onClick={() => { setDirection('borrow'); if (pocket === 'FLEXI') setPocket('CASH'); }}>ধার নিয়েছি</button>
           </div>
-          <div className="pocket-circles entry-pockets" role="group" aria-label="কোন পকেট থেকে">{seedPockets.map((item) => <button type="button" key={item.id} className={`pocket-circle ${item.color}${pocket === item.id ? ' on' : ''}`} aria-pressed={pocket === item.id} onClick={() => setPocket(item.id)}><span className="pocket-bubble"><PocketMark id={item.id} /></span><span className="pocket-name">{item.name_bn}</span></button>)}</div>
+          <div className="pocket-circles entry-pockets" role="group" aria-label="কোন পকেট থেকে">{seedPockets.filter((item) => item.id !== 'PHARMA' && item.id !== 'MOBILE' && !(direction === 'borrow' && item.id === 'FLEXI')).map((item) => <button type="button" key={item.id} className={`pocket-circle ${item.color}${pocket === item.id ? ' on' : ''}`} aria-pressed={pocket === item.id} onClick={() => setPocket(item.id)}><span className="pocket-bubble"><PocketMark id={item.id} /></span><span className="pocket-name">{item.name_bn}</span></button>)}</div>
           <section className="send-block">
             <p>কার কাছে</p>
             <div className="khata-name-row"><select className="send-phone" aria-label="কার কাছে" value={personId} onChange={(event) => setPersonId(event.target.value)}><option value="">নাম বেছে নিন</option>{people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select><Button className="mini-btn" variant="outline" size="touch" onClick={() => setAdding(true)}>নতুন নাম</Button></div>
