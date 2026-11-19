@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { db, queueLoan, queuePerson, queueRepayment, seedPockets, type CachedPerson } from '../foundations/db';
 import { PocketMark } from '../foundations/PocketMark';
 import { loansWithPending } from '../foundations/ledger-view';
 import { inDhakaWindow, matchesQuery, taka, toPaisa } from '../foundations/money';
 import { useHisab } from '../foundations/Provider';
+import { usePageTitle } from '../foundations/Shell';
 import { api } from '../foundations/sync';
 import { SavedPopup } from '../foundations/SavedPopup';
 
@@ -35,6 +36,7 @@ export function People() {
   const [loanWay, setLoanWay] = useState('');
   const [loanState, setLoanState] = useState('');
   const [loanWhen, setLoanWhen] = useState('all');
+  const [openId, setOpenId] = useState('');
   async function load() {
     const localPeople = (await db.people.toArray()).map((row) => ({ id: row.id, name: String(row.name ?? ''), phone: String(row.phone ?? ''), writer: String(row.writer ?? ''), pending: true }));
     const localLoans = await db.loans.toArray();
@@ -110,7 +112,16 @@ export function People() {
     });
     return { ...group, loans };
   }).filter((group) => (loanOn ? group.loans.length > 0 : matchesQuery(find, [group.name, group.phone]) || group.loans.length > 0));
-  return <div className={`khata-screen ${pane}`}>
+  const open = [...groups.values()].find((group) => group.id === openId);
+  usePageTitle(open?.name ?? '');
+  const brief = (group: { loans: Loan[] }) => {
+    const lend = group.loans.filter((loan) => loan.direction === 'lend').reduce((sum, loan) => sum + loan.remaining_paisa, 0);
+    const borrow = group.loans.filter((loan) => loan.direction === 'borrow').reduce((sum, loan) => sum + loan.remaining_paisa, 0);
+    if (!group.loans.length) return 'এখনো ধার নেই';
+    const bits = [lend ? `দিয়েছি বাকি ${taka(lend, settings?.digits)}` : '', borrow ? `নিয়েছি বাকি ${taka(borrow, settings?.digits)}` : ''].filter(Boolean);
+    return bits.join(' · ') || 'শোধ হয়ে গেছে';
+  };
+  return <div className={`khata-screen ${pane}${open ? ' person' : ''}`}>
     <div className="khata-tabs" role="group" aria-label="খাতা দেখা বা নতুন লেখা">
       <Button variant={pane === 'write' ? 'ledger' : 'outline'} size="touch" aria-pressed={pane === 'write'} onClick={() => setPane('write')}>নতুন লিখি</Button>
       <Button variant={pane === 'list' ? 'ledger' : 'outline'} size="touch" aria-pressed={pane === 'list'} onClick={() => setPane('list')}>খাতা দেখি</Button>
@@ -130,10 +141,29 @@ export function People() {
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="finder"><div className="finder-actions"><button type="button" className={`search-open${finding ? ' on' : ''}`} aria-expanded={finding} onClick={() => { setFinding((open) => !open); setFind(''); }}><Search />খুঁজুন</button><button type="button" className={`filter-open${loanOn ? ' on' : ''}`} aria-haspopup="dialog" aria-expanded={filtering} onClick={() => setFiltering(true)}><SlidersHorizontal />ফিল্টার</button></div>{finding && <input className="text-input" aria-label="খাতা খুঁজুন" placeholder="নাম, ফোন, টাকা" value={find} autoFocus onChange={(event) => setFind(event.target.value)} />}{filtering && <div className="modal-shade" onClick={() => setFiltering(false)}><section className="wizard" role="dialog" aria-modal="true" aria-label="ফিল্টার" onClick={(event) => event.stopPropagation()}><div className="wizard-header"><h2>ফিল্টার</h2><Button variant="ghost" size="touch" aria-label="বন্ধ করুন" onClick={() => setFiltering(false)}><X /></Button></div><div className="wizard-content report-filters"><div><span>সময়</span><div className="filter-row">{[['all', 'সব'], ['today', 'আজ'], ['7', '৭ দিন'], ['30', '৩০ দিন']].map(([id, label]) => <button type="button" key={id} className={loanWhen === id ? 'on' : ''} aria-pressed={loanWhen === id} onClick={() => setLoanWhen(id)}>{label}</button>)}</div></div><div><span>ধরন</span><div className="filter-row"><button type="button" className={loanWay === '' ? 'on' : ''} aria-pressed={loanWay === ''} onClick={() => setLoanWay('')}>সব</button><button type="button" className={loanWay === 'lend' ? 'on' : ''} aria-pressed={loanWay === 'lend'} onClick={() => setLoanWay('lend')}>আমি দিয়েছি</button><button type="button" className={loanWay === 'borrow' ? 'on' : ''} aria-pressed={loanWay === 'borrow'} onClick={() => setLoanWay('borrow')}>আমি নিয়েছি</button></div></div><div><span>অবস্থা</span><div className="filter-row"><button type="button" className={loanState === '' ? 'on' : ''} aria-pressed={loanState === ''} onClick={() => setLoanState('')}>সব</button><button type="button" className={loanState === 'open' ? 'on' : ''} aria-pressed={loanState === 'open'} onClick={() => setLoanState('open')}>এখনো খোলা</button><button type="button" className={loanState === 'partial' ? 'on' : ''} aria-pressed={loanState === 'partial'} onClick={() => setLoanState('partial')}>কিছু ফিরেছে</button><button type="button" className={loanState === 'closed' ? 'on' : ''} aria-pressed={loanState === 'closed'} onClick={() => setLoanState('closed')}>শোধ হয়ে গেছে</button></div></div><Button variant="ledger" size="touch" onClick={() => setFiltering(false)}>দেখুন</Button>{loanOn && <Button variant="outline" size="touch" onClick={() => { setLoanWay(''); setLoanState(''); setLoanWhen('all'); }}>সব মুছুন</Button>}</div></section></div>}</div>
     {saved && <SavedPopup title={saved.title} detail={saved.detail} onClose={() => setSaved(null)} />}
-    <div className="loan-list">{groups.size === 0 && <p className="khata-empty">এখনো কেউ নেই। নতুন লিখি খুলে নতুন নাম যোগ করুন।</p>}{groups.size > 0 && listed.length === 0 && <p className="khata-empty">কিছু মেলেনি।</p>}{listed.map((group) => <section className="loan-card person-block" key={group.id}><header><strong>{group.name}</strong><span>{group.phone || 'ফোন নেই'}</span><small className="who-wrote">লিখেছে {wrote(group.writer)}</small></header>{group.loans.length === 0 && <p className="loan-empty">এই নামে এখনো ধার নেই।</p>}{group.loans.map((loan) => {
-      const way = loan.direction === 'lend' ? 'আমি দিয়েছি' : 'আমি নিয়েছি';
-      const pocket = seedPockets.find((item) => item.id === loan.pocket_id)?.name_bn ?? 'পকেট';
-      return <article key={loan.id} className={loan.direction}><div className="loan-top"><span className={`loan-way ${loan.direction}`}>{way}</span><span className={`loan-state ${loan.status}`}>{statusText(loan)}</span></div><p className="who-wrote">লিখেছে {wrote(loan.writer)}</p><p className="loan-left"><span>এখন বাকি</span><strong>{taka(loan.remaining_paisa, settings?.digits)}</strong></p><dl className="loan-facts"><div><dt>মোট ছিল</dt><dd>{taka(loan.principal_paisa, settings?.digits)}</dd></div><div><dt>পকেট</dt><dd><PocketMark id={loan.pocket_id} />{pocket}</dd></div><div><dt>খোলা</dt><dd>{stamp(loan.opened_at)}</dd></div><div><dt>ফেরত আশা</dt><dd>{loan.due_at ? stamp(loan.due_at) : 'দিন ঠিক নেই'}</dd></div></dl><ul className="timeline">{loan.events.map((event) => <li key={event.id}><span>{event.type === 'open' ? (loan.direction === 'lend' ? 'শুরুতে দিয়েছি' : 'শুরুতে নিয়েছি') : (loan.direction === 'lend' ? 'ফেরত পেয়েছি' : 'ফেরত দিয়েছি')} · {stamp(event.at)} · লিখেছে {wrote(event.writer)}</span><b>{taka(event.amount_paisa, settings?.digits)}</b></li>)}</ul>{role === 'admin' && loan.status !== 'closed' && !loan.pending && <div className="repay-row"><label>কত টাকা ফিরে এল<input className="text-input" aria-label="কত টাকা ফিরে এল" placeholder="যেমন ১০০" inputMode="decimal" value={repay[loan.id] ?? ''} onChange={(event) => setRepay({ ...repay, [loan.id]: event.target.value })} /></label><Button variant="outline" size="touch" onClick={() => pay(loan)}>{loan.direction === 'lend' ? 'ফেরত পেয়েছি' : 'ফেরত দিয়েছি'}</Button></div>}</article>;
-    })}</section>)}</div>
+    {open ? <div className="khata-detail">
+      <Button variant="ghost" size="touch" className="day-back" onClick={() => setOpenId('')}><ArrowLeft />খাতায় ফিরুন</Button>
+      <header className="khata-detail-head"><h2>{open.name}</h2><p>{open.phone || 'ফোন নেই'}</p><p>খাতায় যোগ করেছেন {wrote(open.writer)}</p></header>
+      {open.loans.length === 0 && <p className="khata-empty">এই নামে এখনো ধার নেই।</p>}
+      {open.loans.map((loan) => {
+        const way = loan.direction === 'lend' ? 'আমি দিয়েছি' : 'আমি নিয়েছি';
+        const pocketName = seedPockets.find((item) => item.id === loan.pocket_id)?.name_bn ?? 'পকেট';
+        return <section className="khata-loan-detail" key={loan.id}>
+          <p className={`loan-way ${loan.direction}`}>{way}</p>
+          <p className="khata-status">{statusText(loan)}</p>
+          <p className="loan-left"><span>এখন বাকি</span><strong>{taka(loan.remaining_paisa, settings?.digits)}</strong></p>
+          <div className="khata-facts">
+            <div className="khata-fact"><span>মোট ছিল</span><b>{taka(loan.principal_paisa, settings?.digits)}</b></div>
+            <div className="khata-fact"><span>পকেট</span><b><PocketMark id={loan.pocket_id} />{pocketName}</b></div>
+            <div className="khata-fact"><span>কবে খোলা</span><b>{stamp(loan.opened_at)}</b></div>
+            <div className="khata-fact"><span>কবে ফেরত আশা</span><b>{loan.due_at ? stamp(loan.due_at) : 'দিন ঠিক নেই'}</b></div>
+            <div className="khata-fact"><span>কে লিখেছে</span><b>{wrote(loan.writer)}</b></div>
+          </div>
+          <h3>যা হয়েছে</h3>
+          <ul className="khata-story">{loan.events.map((event) => <li key={event.id}><span>{event.type === 'open' ? (loan.direction === 'lend' ? 'শুরুতে দিয়েছি' : 'শুরুতে নিয়েছি') : (loan.direction === 'lend' ? 'ফেরত পেয়েছি' : 'ফেরত দিয়েছি')}<small>{stamp(event.at)} · {wrote(event.writer)}</small></span><b>{taka(event.amount_paisa, settings?.digits)}</b></li>)}</ul>
+          {role === 'admin' && loan.status !== 'closed' && !loan.pending && <div className="repay-row"><label>কত টাকা ফিরে এল<input className="text-input" aria-label="কত টাকা ফিরে এল" placeholder="যেমন ১০০" inputMode="decimal" value={repay[loan.id] ?? ''} onChange={(event) => setRepay({ ...repay, [loan.id]: event.target.value })} /></label><Button variant="outline" size="touch" onClick={() => pay(loan)}>{loan.direction === 'lend' ? 'ফেরত পেয়েছি' : 'ফেরত দিয়েছি'}</Button></div>}
+        </section>;
+      })}
+    </div> : <div className="loan-list">{groups.size === 0 && <p className="khata-empty">এখনো কেউ নেই। নতুন লিখি খুলে নতুন নাম যোগ করুন।</p>}{groups.size > 0 && listed.length === 0 && <p className="khata-empty">কিছু মেলেনি।</p>}{listed.map((group) => <button type="button" className="khata-person-card" key={group.id} onClick={() => { setOpenId(group.id); setPane('list'); }}><span><strong>{group.name}</strong><small>{group.phone || 'ফোন নেই'} · {brief(group)}</small></span><ChevronRight /></button>)}</div>}
   </div>;
 }

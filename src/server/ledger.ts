@@ -43,8 +43,6 @@ export async function registerShop(input: { shop_id: string; shop_name: string; 
   const name = input.name.trim().slice(0, 60);
   if (!shopName || !name) throw new Error("bad_name");
   const sql = await db();
-  const named = await sql`select id from shops limit 1`;
-  if (named.length) throw new Error("shop_exists");
   const { hash, salt } = hashPin(pin);
   await sql.begin(async (tx) => {
     await tx`insert into shops (id, name) values (${shopId}, ${shopName}) on conflict (id) do nothing`;

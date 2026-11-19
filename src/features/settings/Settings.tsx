@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Store, LockKeyhole, ShieldCheck, Volume2, Eye, Check, Pencil, Smartphone, Languages, X, UserPlus, LogOut } from 'lucide-react';
+import { Store, LockKeyhole, ShieldCheck, Volume2, Eye, Check, Pencil, Smartphone, Languages, X, UserPlus, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useHisab } from '../foundations/Provider';
 import { db } from '../foundations/db';
@@ -9,7 +9,7 @@ import { hashPin } from '../foundations/security';
 import { normalizeDigits } from '../foundations/money';
 import { ApiError, api } from '../foundations/sync';
 export function SettingsPage() {
-  const { settings, storage, lock, speak, role, shopName, online } = useHisab(); const [shop, setShop] = useState(''); const [editing, setEditing] = useState(false); const [error, setError] = useState('');
+  const { settings, storage, lock, speak, role, shopName, userName, online } = useHisab(); const [shop, setShop] = useState(''); const [editing, setEditing] = useState(false); const [error, setError] = useState('');
   const [ownPhone, setOwnPhone] = useState(''); const [phoneEdit, setPhoneEdit] = useState(false); const [phoneDraft, setPhoneDraft] = useState('');
   useEffect(() => { if (!online) return; api<{ phone?: string }>('/api/me').then((me) => setOwnPhone(me.phone ?? '')).catch(() => undefined); }, [online]);
   const [pinMode, setPinMode] = useState(false); const [pin, setPin] = useState(''); const [oldPin, setOldPin] = useState(''); const [first, setFirst] = useState(''); const [pinStep, setPinStep] = useState(0);
@@ -33,6 +33,7 @@ export function SettingsPage() {
   }
   return <><div className="settings-groups">
     <section className="settings-group"><h2>দোকান</h2><p className="field-hint">দোকানের নাম আর আপনি কে</p><div className="settings-list">
+      <article><User /><div><h3>আপনার নাম</h3><p>{userName || 'নাম নেই'}</p></div></article>
       <article><Store /><div><h3>দোকানের নাম</h3>{editing ? <input className="text-input" aria-label="দোকানের নাম" placeholder="নতুন দোকানের নাম" value={shop} maxLength={60} onChange={e => setShop(e.target.value)} /> : <p>{shopName}</p>}</div>{role === 'admin' && <Button variant="outline" size="touch" onClick={async () => { if (!editing) { setShop(shopName); setEditing(true); return; } if (!shop.trim()) return; try { await api('/api/shop', { method: 'PATCH', body: JSON.stringify({ name: shop.trim() }) }); await update({ shop_name: shop.trim() }); await db.session.update('main', { shop_name: shop.trim() }); setEditing(false); setError(''); } catch { setError('নাম সেভ হয়নি'); } }}>{editing ? <Check /> : <Pencil />}{editing ? 'সেভ করুন' : 'বদলান'}</Button>}</article>
       <article><Smartphone /><div><h3>আপনার ফোন</h3>{role === 'admin' && phoneEdit ? <input className="text-input" aria-label="আপনার ফোন" placeholder="যেমন ০১৭১১০০০০০০" inputMode="tel" maxLength={11} value={phoneDraft} onChange={(event) => setPhoneDraft(normalizeDigits(event.target.value).replace(/\D/g, '').slice(0, 11))} /> : <p>{ownPhone || 'ফোন সেভ নেই। সেভ না থাকলে ঢুকতে পারবেন না।'}{role !== 'admin' ? ' ফোন বদলান মালিক।' : ''}</p>}</div>{role === 'admin' && <Button variant="outline" size="touch" onClick={async () => { if (!phoneEdit) { setPhoneDraft(ownPhone); setPhoneEdit(true); return; } if (!/^01\d{9}$/.test(phoneDraft)) { setError('ফোন নম্বর ১১ সংখ্যা, ০১ দিয়ে'); return; } try { const saved = await api<{ phone: string }>('/api/me/phone', { method: 'POST', body: JSON.stringify({ phone: phoneDraft }) }); setOwnPhone(saved.phone); setPhoneEdit(false); setError(''); } catch (cause) { setError(cause instanceof ApiError && cause.message === 'phone_taken' ? 'এই ফোন আছে' : cause instanceof ApiError && cause.message === 'forbidden' ? 'শুধু মালিক ফোন বদলাতে পারেন' : 'ফোন সেভ হয়নি'); } }}>{phoneEdit ? <Check /> : <Pencil />}{phoneEdit ? 'সেভ করুন' : 'বদলান'}</Button>}</article>
       <article><ShieldCheck /><div><h3>আপনার ভূমিকা</h3><p>{role === 'employee' ? 'কর্মচারী। আগের হিসাব দেখতে পারবেন।' : 'মালিক। পুরো রিপোর্ট দেখতে ও বদলাতে পারবেন।'}</p></div></article>

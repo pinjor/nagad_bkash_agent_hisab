@@ -49,11 +49,13 @@ export function Login({ online }: { online: boolean }) {
   const [shake, setShake] = useState(0);
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState(false);
+  const [door, setDoor] = useState<'login' | 'signup' | null>(null);
   const sent = useRef('');
   const wrongGen = useRef(0);
   const saved = useLiveQuery(() => db.settings.get('main'));
   const chosen = shops.find((row) => row.id === shopId);
-  const showShops = ready && shops.length > 1 && (pickingShop || !shopId);
+  const signingUp = door === 'signup' || (door === null && !ready);
+  const showShops = !signingUp && ready && shops.length > 1 && (pickingShop || !shopId);
   const shopName = chosen?.name || (saved?.shop_name ?? '').trim();
   useEffect(() => {
     if (shops.length || !saved?.shop_id) return;
@@ -80,11 +82,11 @@ export function Login({ online }: { online: boolean }) {
   }, [ready, shops, saved, shopId, pickingShop]);
   async function submit() {
     if (pin.length !== 4 || busy || wrong) return;
-    if (!ready && (!shop.trim() || !name.trim() || !phoneOk(phone))) return;
-    if (ready && (!phoneOk(phone) || (shops.length > 1 && !shopId))) return;
+    if (signingUp && (!shop.trim() || !name.trim() || !phoneOk(phone))) return;
+    if (!signingUp && (!phoneOk(phone) || (shops.length > 1 && !shopId))) return;
     setBusy(true); setError('');
     try {
-      if (!ready) {
+      if (signingUp) {
         const user_id = newId(); const newShop = newId(); const device_id = newId();
         const shopName = shop.trim(); const personName = name.trim(); const ownPhone = phoneDigits(phone);
         if (!online) {
@@ -108,7 +110,7 @@ export function Login({ online }: { online: boolean }) {
         await db.session.put({ id: 'main', token: result.token, role: result.role, user_id: result.user_id, shop_id: result.shop_id, name: result.name, shop_name: result.shop_name, pending: false, device_id: newId() });
       }
     } catch (cause) {
-      if (cause instanceof ApiError && cause.message === 'shop_exists') setReady(true);
+      if (cause instanceof ApiError && cause.message === 'shop_exists') { setReady(true); setDoor('login'); }
       const gen = ++wrongGen.current;
       setError(authError(cause));
       setWrong(true);
@@ -123,7 +125,7 @@ export function Login({ online }: { online: boolean }) {
   useEffect(() => {
     if (pin.length < 4) { sent.current = ''; return; }
     if (wrong || busy || showShops) return;
-    const need = !ready && (!shop.trim() || !name.trim()) ? 'আগে দোকান আর নিজের নাম লিখুন' : !phone.trim() ? 'আগে ফোন নম্বর লিখুন' : !phoneOk(phone) ? 'ফোন নম্বর ১১ সংখ্যা, ০১ দিয়ে' : '';
+    const need = signingUp && (!shop.trim() || !name.trim()) ? 'আগে দোকান আর নিজের নাম লিখুন' : !phone.trim() ? 'আগে ফোন নম্বর লিখুন' : !phoneOk(phone) ? 'ফোন নম্বর ১১ সংখ্যা, ০১ দিয়ে' : '';
     if (need) {
       const gen = ++wrongGen.current;
       setError(need);
@@ -136,11 +138,11 @@ export function Login({ online }: { online: boolean }) {
       }, 650);
       return;
     }
-    const key = `${ready}:${shopId}:${phoneDigits(phone)}:${pin}`;
+    const key = `${signingUp}:${shopId}:${phoneDigits(phone)}:${pin}`;
     if (sent.current === key) return;
     sent.current = key;
     void submit();
-  }, [pin, ready, shop, name, phone, shopId, wrong, busy, showShops]);
+  }, [pin, signingUp, shop, name, phone, shopId, wrong, busy, showShops]);
   function changePin(next: string) {
     if (busy || opening) return;
     wrongGen.current += 1;
@@ -159,9 +161,9 @@ export function Login({ online }: { online: boolean }) {
   }
   const dots = wrong ? 'pin-dots wrong' : opening ? 'pin-dots opening' : busy ? 'pin-dots checking' : 'pin-dots';
   return <main className={opening ? 'lock-screen opening' : 'lock-screen'}><div className="lock-inner auth-card">
-    <h1>{!ready ? 'আমার হিসাব' : (shopName || 'আমার হিসাব')}</h1>
-    {!showShops && <p className="auth-lead">{!ready ? 'দোকানের নাম, নিজের নাম, ফোন, তারপর পিন' : 'ফোন নম্বর লিখুন, তারপর পিন'}</p>}
-    {!ready && <div className="auth-fields">
+    <h1>{signingUp ? 'আমার হিসাব' : (shopName || 'আমার হিসাব')}</h1>
+    {!showShops && <p className="auth-lead">{signingUp ? 'দোকানের নাম, নিজের নাম, ফোন, তারপর পিন' : 'ফোন নম্বর লিখুন, তারপর পিন'}</p>}
+    {signingUp && <div className="auth-fields">
       <label>দোকানের নাম<input className="text-input" aria-label="দোকানের নাম" placeholder="যেমন আমার দোকান" value={shop} onChange={(event) => setShop(event.target.value)} maxLength={60} /></label>
       <label>নাম<input className="text-input" aria-label="নাম" placeholder="যেমন রহিম" value={name} onChange={(event) => setName(event.target.value)} maxLength={60} autoComplete="name" /></label>
     </div>}
@@ -172,10 +174,11 @@ export function Login({ online }: { online: boolean }) {
       <div key={shake} className={dots} aria-label={wrong ? 'পিন মিলেনি' : `${pin.length}টি সংখ্যা`}>{Array.from({ length: 4 }, (_, i) => <span key={i} className={i < pin.length ? 'filled' : ''} />)}</div>
       <Keypad value={pin} onChange={changePin} pin />
       {error && <p className="form-error" role="alert">{error}</p>}
-      <p className="auth-pin-status" aria-live="polite">{busy && !opening ? (ready ? 'ঢুকছে…' : 'খুলছে…') : opening ? 'খুলছে…' : '৪ সংখ্যা দিলেই ঢুকবে'}</p>
-      {!ready && <Button variant="ledger" size="primary" disabled={pin.length !== 4 || !shop.trim() || !name.trim() || !phoneOk(phone) || busy || wrong} onClick={submit}>দোকান খুলুন</Button>}
-      {ready && <Button variant="ledger" size="primary" disabled={pin.length !== 4 || !phoneOk(phone) || busy || wrong} onClick={submit}>ঢুকুন</Button>}
+      <p className="auth-pin-status" aria-live="polite">{busy && !opening ? (signingUp ? 'খুলছে…' : 'ঢুকছে…') : opening ? 'খুলছে…' : '৪ সংখ্যা দিলেই ঢুকবে'}</p>
+      {signingUp && <Button variant="ledger" size="primary" disabled={pin.length !== 4 || !shop.trim() || !name.trim() || !phoneOk(phone) || busy || wrong} onClick={submit}>দোকান খুলুন</Button>}
+      {!signingUp && <Button variant="ledger" size="primary" disabled={pin.length !== 4 || !phoneOk(phone) || busy || wrong} onClick={submit}>ঢুকুন</Button>}
     </div>}
-    {ready && shops.length > 1 && !showShops && <button type="button" className="auth-other" onClick={() => { setPickingShop(true); setPhone(''); changePin(''); }}>অন্য দোকান</button>}
+    {!signingUp && shops.length > 1 && !showShops && <button type="button" className="auth-other" onClick={() => { setPickingShop(true); setPhone(''); changePin(''); }}>অন্য দোকান</button>}
+    <div className="auth-door"><span>অথবা</span><button type="button" disabled={busy || opening} onClick={() => { setDoor(signingUp ? 'login' : 'signup'); setPickingShop(false); setError(''); changePin(''); }}>{signingUp ? 'দোকান আছে' : 'নতুন দোকান'}</button></div>
   </div></main>;
 }

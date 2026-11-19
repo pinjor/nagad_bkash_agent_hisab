@@ -252,8 +252,12 @@ button,a,input { -webkit-tap-highlight-color:transparent; } h1,h2,h3,p { margin:
 .auth-card { display:flex; flex-direction:column; gap:8px; width:min(400px,100%); max-width:400px; }
 .auth-card .brand-mark { width:44px; height:44px; margin:0 auto; }
 .auth-card h1 { margin:0; font-size:26px; line-height:1.2; }
-.auth-switch { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; }
-.auth-switch button { min-height:44px; height:44px; white-space:normal; }
+.auth-door { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; }
+.auth-door span { display: flex; align-items: center; gap: 10px; color: var(--muted-foreground); font-size: 13px; font-weight: 600; }
+.auth-door span::before, .auth-door span::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.auth-door button { min-height: 48px; width: 100%; border: 1px solid var(--border); border-radius: 12px; background: var(--background); color: var(--foreground); font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; }
+.auth-door button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.auth-door button:disabled { opacity: .6; cursor: default; }
 .auth-fields { display:flex; flex-direction:column; gap:8px; text-align:left; }
 .auth-fields label { display:flex; flex-direction:column; gap:4px; font-size:14px; font-weight:600; color:var(--muted-foreground); }
 .auth-fields .text-input { min-height:44px; }
@@ -830,3 +834,73 @@ button.staff-card header strong { font-size: 16px; }
   .auth-card h1 { font-size: 26px; }
   .auth-card .keypad-button, .lock-inner .keypad-button { height: 44px; min-height: 44px; font-size: 22px; }
 }
+@media (min-width: 801px) {
+  .report-page, .entry-layout { width: 100%; max-width: none; }
+  .pockets-section .pocket-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .today-band { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .today-band h2 { grid-column: 1 / -1; }
+  .today-band > div { flex-direction: column; align-items: flex-start; border-top: 0; border-left: 1px solid var(--border); }
+  .balance-banner { flex-direction: row; align-items: center; }
+  .banner-right, .banner-right a { width: auto; }
+  .banner-right a { justify-content: center; }
+  .stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .lock-screen { justify-content: center; align-items: center; }
+  .auth-card, .lock-inner { width: min(400px, 100%); max-width: 400px; }
+}
+@media (min-width: 1200px) {
+  .pockets-section .pocket-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .today-band { grid-template-columns: minmax(120px, .7fr) repeat(5, minmax(0, 1fr)); }
+  .today-band h2 { grid-column: auto; align-self: center; }
+  .hisab-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .khata-screen { display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); column-gap: 16px; align-items: start; }
+  .khata-compose { grid-column: 1; grid-row: 1 / span 2; align-self: start; }
+  .khata-screen > .finder { grid-column: 2; grid-row: 1; }
+  .khata-screen > .loan-list { grid-column: 2; grid-row: 2; }
+  .settings-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+}
+.khata-person-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 64px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.khata-person-card > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.khata-person-card strong { font-size: 17px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.khata-person-card small { font-size: 14px; font-weight: 600; line-height: 1.35; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.khata-person-card svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--muted-foreground); }
+.khata-screen.person .khata-compose, .khata-screen.person .finder, .khata-screen.person .khata-tabs { display: none; }
+.khata-screen.person { display: block; }
+.khata-detail { display: flex; flex-direction: column; gap: 14px; width: min(100%, 720px); }
+.khata-detail-head h2 { margin: 0; font-size: 28px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.khata-detail-head p { margin: 2px 0 0; color: var(--muted-foreground); font-size: 15px; font-weight: 600; }
+.khata-loan-detail { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); }
+.khata-status { margin: 0; font-size: 15px; font-weight: 700; color: var(--muted-foreground); }
+.khata-facts { display: flex; flex-direction: column; }
+.khata-fact { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; border-top: 1px solid var(--border); }
+.khata-fact span { color: var(--muted-foreground); font-size: 15px; font-weight: 600; }
+.khata-fact b { display: inline-flex; align-items: center; gap: 4px; font-size: 16px; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+.khata-loan-detail h3 { margin: 4px 0 0; font-size: 16px; font-weight: 700; }
+.khata-story { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.khata-story li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; border-top: 1px solid var(--border); }
+.khata-story span { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 15px; font-weight: 700; }
+.khata-story small { font-size: 13px; font-weight: 600; color: var(--muted-foreground); }
+.khata-story b { flex-shrink: 0; font-size: 16px; font-weight: 700; }
+.hisab-cards { gap: 8px; margin-top: 8px; }
+.hisab-card { gap: 2px; padding: 8px 10px; }
+.hisab-card header { align-items: center; }
+.hisab-card header strong { font-size: 16px; line-height: 1.25; }
+.hisab-card .loan-way { min-height: 0; height: auto; padding: 2px 8px; font-size: 13px; }
+.hisab-card .loan-left { margin: 0; gap: 0; }
+.hisab-card .loan-left strong { font-size: 18px; line-height: 1.2; }
+.hisab-meta, .hisab-writer { font-size: 13px; line-height: 1.3; }
+.day-list { gap: 8px; }
+.day-card { gap: 4px; padding: 8px 10px; }
+.day-summary p { margin: 0; }
+.day-summary .stat-grid { gap: 2px 8px; }
+.day-summary .stat-grid div { flex-direction: row; align-items: center; justify-content: space-between; gap: 4px; }
+.day-summary .stat-grid span { min-width: 0; }
+.day-summary .stat-grid b { flex-shrink: 0; }
+.day-summary .stat-grid span, .day-summary .stat-grid b { line-height: 1.25; }
+@media (min-width: 801px) {
+  .hisab-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1200px) {
+  .hisab-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.settings-list.report-totals article { min-height: 0; padding: 6px 10px; }
+.report-page { gap: 8px; }
